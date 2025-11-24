@@ -21,6 +21,7 @@ BSON（Binary JSON）是一种高效的二进制序列化格式，广泛应用�
 - ✅ 实现 BSON 协议的完整反序列化能力
 - ✅ 实现高性能部分字段读取功能
 - ✅ 在只需要少量字段时，跳过不需要的字段，避免完整解析开销
+- ✅ **提前退出机制**：解析到所有需要的字段后立即停止，无需遍历整个文档
 - ✅ 借鉴 FastJSON 的优化理念，达到极致性能
 - ✅ 提供简洁易用的 API 接口
 
@@ -38,11 +39,207 @@ BSON（Binary JSON）是一种高效的二进制序列化格式，广泛应用�
 
 ---
 
-## 2. 性能优化技术
+## 2. 核心使用场景
 
-### 2.1 核心优化理念
+### 2.1 提前退出场景（Early Exit Optimization）
 
-#### 2.1.1 假定有序快速匹配算法
+#### 2.1.1 场景描述
+
+在实际应用中，经常遇到以下情况：
+- 从包含 100 个字段的大型文档中，只需要提取前面的 3-5 个字段
+- 需要的字段通常位于文档的开头部分
+- 后续的 95+ 个字段完全不需要处理
+
+**传统解析器的问题：**
+即使只需要前 5 个字段，传统解析器仍然会：
+1. 遍历整个文档的所有 100 个字段
+2. 解析每个字段的类型和值
+3. 浪费大量 CPU 时间在不需要的字段上
+
+#### 2.1.2 提前退出优化
+
+FastBSON 实现了智能的提前退出机制：
+
+```java
+// 只需要提取前 3 个字段
+FastBsonParser parser = FastBsonParser.builder()
+    .fields("userId", "userName", "timestamp")
+    .earlyExit(true)  // 启用提前退出
+    .build();
+
+byte[] bsonData = ...;  // 100+ 字段的大型文档
+Map<String, Object> result = parser.parse(bsonData);
+
+// 找到 3 个目标字段后立即停止解析
+// 剩余 97 个字段被完全跳过，不会浪费 CPU
+```
+
+**工作原理：**
+
+1. **字段计数器**：记录已找到的目标字段数量
+2. **提前退出判断**：当 `已找到字段数 == 目标字段数` 时立即退出
+3. **无需遍历剩余字段**：直接返回结果，节省 CPU 时间
+
+```java
+public class PartialParser {
+    private final FieldMatcher matcher;
+    private final int targetFieldCount;
+    private final boolean earlyExit;
+
+    public Map<String, Object> parse(byte[] bsonData) {
+        BsonReader reader = new BsonReader(bsonData);
+        Map<String, Object> result = new HashMap<>();
+
+        int docLength = reader.readInt32();
+        int endPos = reader.position() + docLength - 4;
+        int foundCount = 0;
+
+        while (reader.position() < endPos) {
+            byte type = reader.readByte();
+            if (type == 0) break;
+
+            String fieldName = reader.readCString();
+
+            if (matcher.matches(fieldName)) {
+                // 找到目标字段，解析值
+                Object value = typeHandler.parseValue(reader, type);
+                result.put(fieldName, value);
+                foundCount++;
+
+                // ⭐ 提前退出判断
+                if (earlyExit && foundCount == targetFieldCount) {
+                    return result;  // 立即返回，无需继续
+                }
+            } else {
+                // 跳过不需要的字段
+                skipper.skipValue(reader, type);
+            }
+        }
+
+        return result;
+    }
+}
+```
+
+#### 2.1.3 性能提升分析
+
+**场景：100 字段文档，提取前 5 个字段**
+
+| 解析方式 | 需要处理的字段 | CPU 时间 | 性能提升 |
+|---------|--------------|---------|---------|
+| 传统完整解析 | 100 个 | 100% | 1.0x |
+| 部分解析（无提前退出） | 5 个解析 + 95 个跳过 | ~20% | 5x |
+| 部分解析（提前退出） | 5 个解析 | ~5% | **20x** |
+
+**关键优势：**
+- ✅ **最小化 CPU 使用**：只处理真正需要的字段
+- ✅ **减少内存访问**：不读取后续字段的数据
+- ✅ **降低缓存污染**：减少 CPU 缓存行的污染
+- ✅ **提升吞吐量**：单位时间处理更多文档
+
+#### 2.1.4 实际应用场景
+
+**1. API 网关字段过滤**
+```java
+// 网关只需要验证 userId 和 timestamp，不关心请求体的其他内容
+FastBsonParser gatewayParser = FastBsonParser.builder()
+    .fields("userId", "timestamp")
+    .earlyExit(true)
+    .build();
+
+// 即使请求体有 100+ 字段，只解析前 2 个就停止
+Map<String, Object> headers = gatewayParser.parse(requestData);
+String userId = (String) headers.get("userId");
+long timestamp = (Long) headers.get("timestamp");
+
+if (isValidTimestamp(timestamp)) {
+    // 继续处理请求
+}
+```
+
+**2. 日志分析系统**
+```java
+// 从日志文档中只提取关键字段：时间、级别、消息
+FastBsonParser logParser = FastBsonParser.builder()
+    .fields("@timestamp", "level", "message")
+    .earlyExit(true)
+    .build();
+
+// 日志文档可能包含几十个调试字段，但只需要这 3 个
+for (byte[] logData : logStream) {
+    Map<String, Object> log = logParser.parse(logData);
+    if ("ERROR".equals(log.get("level"))) {
+        alertSystem.notify(log.get("message"));
+    }
+}
+```
+
+**3. 微服务间通信**
+```java
+// 服务 A 调用服务 B，只需要返回结果中的 orderId 和 status
+FastBsonParser serviceParser = FastBsonParser.builder()
+    .fields("orderId", "status")
+    .earlyExit(true)
+    .build();
+
+byte[] response = httpClient.post(serviceB, request);
+Map<String, Object> result = serviceParser.parse(response);
+
+// 响应可能包含订单的所有详细信息（100+ 字段）
+// 但我们只关心 orderId 和 status，解析到这两个字段就停止
+String orderId = (String) result.get("orderId");
+String status = (String) result.get("status");
+```
+
+**4. 数据库查询投影优化**
+```java
+// 类似 MongoDB 的投影（projection），只查询需要的字段
+FastBsonParser projectionParser = FastBsonParser.builder()
+    .fields("_id", "name", "email")
+    .earlyExit(true)
+    .build();
+
+// 文档可能存储了用户的所有信息
+// 但查询结果只需要 ID、姓名和邮箱
+for (byte[] document : queryResults) {
+    Map<String, Object> user = projectionParser.parse(document);
+    users.add(new User(
+        user.get("_id"),
+        user.get("name"),
+        user.get("email")
+    ));
+}
+```
+
+#### 2.1.5 配置选项
+
+```java
+FastBsonParser parser = FastBsonParser.builder()
+    .fields("field1", "field2", "field3")
+
+    // 提前退出配置
+    .earlyExit(true)           // 启用提前退出（默认：true）
+
+    // 其他优化配置
+    .ordered(true)             // 假定字段有序（默认：false）
+    .cacheFieldNames(true)     // 缓存字段名（默认：true）
+
+    .build();
+```
+
+**最佳实践：**
+- ✅ 需要字段数量 < 10% 时：强烈推荐启用 `earlyExit`
+- ✅ 目标字段位于文档前部：性能提升最明显
+- ⚠️ 需要字段数量 > 50% 时：提前退出收益有限
+- ⚠️ 目标字段位于文档尾部：可能无法提前退出
+
+---
+
+## 3. 性能优化技术
+
+### 3.1 核心优化理念
+
+#### 3.1.1 假定有序快速匹配算法
 
 基于实际应用观察，文档字段通常按照固定顺序出现。利用这一特性可以大幅提升匹配效率：
 
@@ -50,7 +247,7 @@ BSON（Binary JSON）是一种高效的二进制序列化格式，广泛应用�
 - 匹配时优先按照预期顺序查找
 - 大幅减少字符串比较次数
 
-#### 2.1.2 ThreadLocal 对象复用
+#### 3.1.2 ThreadLocal 对象复用
 
 使用 ThreadLocal 存储反序列化过程中的临时数据：
 
@@ -58,7 +255,7 @@ BSON（Binary JSON）是一种高效的二进制序列化格式，广泛应用�
 - 降低 GC 压力
 - 复用 StringBuilder、BsonReader 等对象
 
-#### 2.1.3 字符串内部化（String Interning）
+#### 3.1.3 字符串内部化（String Interning）
 
 对于重复出现的字符串（特别是字段名），使用字符串池：
 
@@ -66,7 +263,7 @@ BSON（Binary JSON）是一种高效的二进制序列化格式，广泛应用�
 - 提高字符串比较效率（可使用 == 而非 equals）
 - 降低内存占用
 
-#### 2.1.4 类型处理器缓存
+#### 3.1.4 类型处理器缓存
 
 使用缓存提升性能：
 
