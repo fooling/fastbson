@@ -697,7 +697,29 @@ public Object parseValue(BsonReader reader, byte type) {
 - 基础解析器实现
 - 单元测试套件（覆盖率 > 90%）
 
-### 5.2 Phase 2: 部分字段解析（1周）
+### 5.2 Phase 2: 性能基准测试模块（3-5天）
+
+**目标：** 建立性能基准测试框架，与官方 org.mongodb:bson 进行对比
+
+- 创建 benchmark 测试模块
+- 集成 JMH（Java Microbenchmark Harness）
+- 添加 org.mongodb:bson 作为测试依赖
+- 实现基准测试用例（完整文档解析对比）
+- 生成性能对比报告
+
+**交付物：**
+- benchmark 测试模块
+- 与 org.mongodb:bson 的性能对比测试
+- 性能基准报告（吞吐量、延迟）
+- 为后续优化建立基线
+
+**测试场景：**
+- 小文档（< 1KB）解析性能
+- 中等文档（1-10KB）解析性能
+- 大文档（> 100KB）解析性能
+- 不同字段数量（10, 50, 100, 500字段）
+
+### 5.3 Phase 3: 部分字段解析（1周）
 
 **目标：** 实现部分字段读取功能
 
@@ -705,14 +727,16 @@ public Object parseValue(BsonReader reader, byte type) {
 - 实现 ValueSkipper 跳过逻辑
 - 实现 PartialParser 部分字段解析
 - 编写部分字段解析测试
+- 添加部分解析的 benchmark 测试
 
 **交付物：**
 - FieldMatcher 实现
 - ValueSkipper 实现
 - PartialParser 实现
 - 功能测试用例
+- 部分解析性能测试
 
-### 5.3 Phase 3: 性能优化（1-2周）
+### 5.4 Phase 4: 性能优化（1-2周）
 
 **目标：** 提升解析性能
 
@@ -720,14 +744,15 @@ public Object parseValue(BsonReader reader, byte type) {
 - 添加字段名内部化
 - 优化常见类型解析路径
 - 实现有序匹配优化
-- 添加性能基准测试
+- 通过 benchmark 验证优化效果
 
 **交付物：**
 - 优化后的实现
-- 性能测试报告
-- 与传统解析器的对比数据
+- 性能提升报告
+- 与 Phase 2 基准的对比数据
+- 与 org.mongodb:bson 的最终对比
 
-### 5.4 Phase 4: API 完善与测试（1周）
+### 5.5 Phase 5: API 完善与测试（1周）
 
 **目标：** 完善 API 和文档
 

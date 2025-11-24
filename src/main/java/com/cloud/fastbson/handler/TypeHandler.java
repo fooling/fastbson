@@ -114,7 +114,7 @@ public class TypeHandler {
     /**
      * Parses an embedded document.
      */
-    private Map<String, Object> parseDocument(BsonReader reader) {
+    public Map<String, Object> parseDocument(BsonReader reader) {
         int docLength = reader.readInt32();
         int endPosition = reader.position() + docLength - 4;
 
