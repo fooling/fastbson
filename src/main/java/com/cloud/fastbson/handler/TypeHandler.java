@@ -1,6 +1,11 @@
 package com.cloud.fastbson.handler;
 
 import com.cloud.fastbson.exception.InvalidBsonTypeException;
+import com.cloud.fastbson.handler.parsers.BooleanParser;
+import com.cloud.fastbson.handler.parsers.DoubleParser;
+import com.cloud.fastbson.handler.parsers.Int32Parser;
+import com.cloud.fastbson.handler.parsers.Int64Parser;
+import com.cloud.fastbson.handler.parsers.StringParser;
 import com.cloud.fastbson.reader.BsonReader;
 import com.cloud.fastbson.util.BsonType;
 import com.cloud.fastbson.util.BsonUtils;
@@ -19,6 +24,7 @@ import java.util.Map;
  *
  * <p>Uses Strategy Pattern with lookup table for O(1) type dispatch.
  * Uses singleton pattern to reduce GC pressure.
+ * Each BSON type is handled by an independent Parser class.
  */
 public class TypeHandler {
 
@@ -26,20 +32,6 @@ public class TypeHandler {
      * Singleton instance for internal use (reduces GC pressure).
      */
     private static final TypeHandler INSTANCE = new TypeHandler();
-
-    /**
-     * Functional interface for BSON type parsing strategy.
-     */
-    @FunctionalInterface
-    interface BsonTypeParser {
-        /**
-         * Parses a BSON value from the reader.
-         *
-         * @param reader the BsonReader positioned at the value
-         * @return the parsed value
-         */
-        Object parse(BsonReader reader);
-    }
 
     /**
      * Lookup table for O(1) type dispatch.
@@ -54,18 +46,20 @@ public class TypeHandler {
 
     /**
      * Initializes the parser lookup table.
+     * Registers independent Parser classes for each BSON type.
      */
     private static void initializeParsers() {
-        // Simple types: method references
-        PARSERS[BsonType.DOUBLE & 0xFF] = BsonReader::readDouble;
-        PARSERS[BsonType.INT32 & 0xFF] = BsonReader::readInt32;
-        PARSERS[BsonType.INT64 & 0xFF] = BsonReader::readInt64;
-        PARSERS[BsonType.STRING & 0xFF] = BsonReader::readString;
-        PARSERS[BsonType.JAVASCRIPT & 0xFF] = BsonReader::readString;
-        PARSERS[BsonType.SYMBOL & 0xFF] = BsonReader::readString;
+        // Simple types: enum singleton parsers (Phase 2.9)
+        PARSERS[BsonType.DOUBLE & 0xFF] = DoubleParser.INSTANCE;
+        PARSERS[BsonType.INT32 & 0xFF] = Int32Parser.INSTANCE;
+        PARSERS[BsonType.INT64 & 0xFF] = Int64Parser.INSTANCE;
+        PARSERS[BsonType.STRING & 0xFF] = StringParser.INSTANCE;
+        PARSERS[BsonType.BOOLEAN & 0xFF] = BooleanParser.INSTANCE;
+        PARSERS[BsonType.JAVASCRIPT & 0xFF] = StringParser.INSTANCE;  // JavaScript is also string
+        PARSERS[BsonType.SYMBOL & 0xFF] = StringParser.INSTANCE;      // Symbol is also string
 
-        // Types requiring simple transformation: lambdas
-        PARSERS[BsonType.BOOLEAN & 0xFF] = (BsonReader reader) -> reader.readByte() != 0;
+        // Types requiring simple transformation: lambdas (TODO: Phase 2.10)
+        // PARSERS[BsonType.BOOLEAN & 0xFF] = (BsonReader reader) -> reader.readByte() != 0;
         PARSERS[BsonType.DATE_TIME & 0xFF] = (BsonReader reader) -> new Date(reader.readInt64());
         PARSERS[BsonType.OBJECT_ID & 0xFF] = (BsonReader reader) -> BsonUtils.bytesToHex(reader.readBytes(12));
 
