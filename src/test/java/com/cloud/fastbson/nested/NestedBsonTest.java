@@ -2,6 +2,7 @@ package com.cloud.fastbson.nested;
 
 import com.cloud.fastbson.handler.TypeHandler;
 import com.cloud.fastbson.reader.BsonReader;
+import com.cloud.fastbson.types.JavaScriptWithScope;
 import org.bson.*;
 import org.bson.codecs.BsonDocumentCodec;
 import org.bson.codecs.EncoderContext;
@@ -361,8 +362,8 @@ public class NestedBsonTest {
         BsonReader reader = new BsonReader(bsonData);
         Map<String, Object> result = handler.parseDocument(reader);
 
-        TypeHandler.JavaScriptWithScope parsed =
-            (TypeHandler.JavaScriptWithScope) result.get("script");
+        JavaScriptWithScope parsed =
+            (JavaScriptWithScope) result.get("script");
         assertNotNull(parsed);
         assertEquals("function() { return x * config.timeout; }", parsed.code);
         assertEquals(10, parsed.scope.get("x"));

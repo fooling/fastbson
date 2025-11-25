@@ -2,6 +2,14 @@ package com.cloud.fastbson.handler;
 
 import com.cloud.fastbson.exception.InvalidBsonTypeException;
 import com.cloud.fastbson.reader.BsonReader;
+import com.cloud.fastbson.types.BinaryData;
+import com.cloud.fastbson.types.DBPointer;
+import com.cloud.fastbson.types.Decimal128;
+import com.cloud.fastbson.types.JavaScriptWithScope;
+import com.cloud.fastbson.types.MaxKey;
+import com.cloud.fastbson.types.MinKey;
+import com.cloud.fastbson.types.RegexValue;
+import com.cloud.fastbson.types.Timestamp;
 import com.cloud.fastbson.util.BsonType;
 import org.junit.jupiter.api.Test;
 
@@ -177,8 +185,8 @@ public class TypeHandlerTest {
 
         Object result = handler.parseValue(reader, BsonType.BINARY);
 
-        assertTrue(result instanceof TypeHandler.BinaryData);
-        TypeHandler.BinaryData binary = (TypeHandler.BinaryData) result;
+        assertTrue(result instanceof BinaryData);
+        BinaryData binary = (BinaryData) result;
         assertEquals((byte) 0x00, binary.subtype);
         assertArrayEquals(binaryContent, binary.data);
     }
@@ -271,8 +279,8 @@ public class TypeHandlerTest {
 
         Object result = handler.parseValue(reader, BsonType.REGEX);
 
-        assertTrue(result instanceof TypeHandler.RegexValue);
-        TypeHandler.RegexValue regex = (TypeHandler.RegexValue) result;
+        assertTrue(result instanceof RegexValue);
+        RegexValue regex = (RegexValue) result;
         assertEquals("^[a-z]+$", regex.pattern);
         assertEquals("i", regex.options);
     }
@@ -290,8 +298,8 @@ public class TypeHandlerTest {
 
         Object result = handler.parseValue(reader, BsonType.DB_POINTER);
 
-        assertTrue(result instanceof TypeHandler.DBPointer);
-        TypeHandler.DBPointer dbPointer = (TypeHandler.DBPointer) result;
+        assertTrue(result instanceof DBPointer);
+        DBPointer dbPointer = (DBPointer) result;
         assertEquals("db.collection", dbPointer.namespace);
         assertEquals("0102030405060708090a0b0c", dbPointer.id);
     }
@@ -331,8 +339,8 @@ public class TypeHandlerTest {
 
         Object result = handler.parseValue(reader, BsonType.JAVASCRIPT_WITH_SCOPE);
 
-        assertTrue(result instanceof TypeHandler.JavaScriptWithScope);
-        TypeHandler.JavaScriptWithScope js = (TypeHandler.JavaScriptWithScope) result;
+        assertTrue(result instanceof JavaScriptWithScope);
+        JavaScriptWithScope js = (JavaScriptWithScope) result;
         assertEquals("function() { return x; }", js.code);
         assertNotNull(js.scope);
     }
@@ -369,8 +377,8 @@ public class TypeHandlerTest {
 
         Object result = handler.parseValue(reader, BsonType.TIMESTAMP);
 
-        assertTrue(result instanceof TypeHandler.Timestamp);
-        TypeHandler.Timestamp timestamp = (TypeHandler.Timestamp) result;
+        assertTrue(result instanceof Timestamp);
+        Timestamp timestamp = (Timestamp) result;
         assertEquals(1000, timestamp.seconds);
         assertEquals(5, timestamp.increment);
     }
@@ -410,8 +418,8 @@ public class TypeHandlerTest {
 
         Object result = handler.parseValue(reader, BsonType.DECIMAL128);
 
-        assertTrue(result instanceof TypeHandler.Decimal128);
-        assertArrayEquals(decimal128Bytes, ((TypeHandler.Decimal128) result).bytes);
+        assertTrue(result instanceof Decimal128);
+        assertArrayEquals(decimal128Bytes, ((Decimal128) result).bytes);
     }
 
     // ==================== Type: MinKey (0xFF) ====================
@@ -423,7 +431,7 @@ public class TypeHandlerTest {
 
         Object result = handler.parseValue(reader, BsonType.MIN_KEY);
 
-        assertTrue(result instanceof TypeHandler.MinKey);
+        assertTrue(result instanceof MinKey);
         assertEquals("MinKey", result.toString());
     }
 
@@ -436,7 +444,7 @@ public class TypeHandlerTest {
 
         Object result = handler.parseValue(reader, BsonType.MAX_KEY);
 
-        assertTrue(result instanceof TypeHandler.MaxKey);
+        assertTrue(result instanceof MaxKey);
         assertEquals("MaxKey", result.toString());
     }
 
@@ -461,14 +469,14 @@ public class TypeHandlerTest {
         byte[] invalidBytes = new byte[15]; // Wrong length
 
         assertThrows(IllegalArgumentException.class, () -> {
-            new TypeHandler.Decimal128(invalidBytes);
+            new Decimal128(invalidBytes);
         });
     }
 
     @Test
     public void testDecimal128_Null() {
         assertThrows(IllegalArgumentException.class, () -> {
-            new TypeHandler.Decimal128(null);
+            new Decimal128(null);
         });
     }
 

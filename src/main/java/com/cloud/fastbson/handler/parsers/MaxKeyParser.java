@@ -1,8 +1,8 @@
 package com.cloud.fastbson.handler.parsers;
 
 import com.cloud.fastbson.handler.BsonTypeParser;
-import com.cloud.fastbson.handler.TypeHandler;
 import com.cloud.fastbson.reader.BsonReader;
+import com.cloud.fastbson.types.MaxKey;
 
 /**
  * Parser for BSON MaxKey type (0x7F).
@@ -19,6 +19,6 @@ public enum MaxKeyParser implements BsonTypeParser {
 
     @Override
     public Object parse(BsonReader reader) {
-        return TypeHandler.MaxKey.INSTANCE;
+        return MaxKey.INSTANCE;
     }
 }

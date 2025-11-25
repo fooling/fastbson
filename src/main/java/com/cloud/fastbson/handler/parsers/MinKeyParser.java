@@ -1,8 +1,8 @@
 package com.cloud.fastbson.handler.parsers;
 
 import com.cloud.fastbson.handler.BsonTypeParser;
-import com.cloud.fastbson.handler.TypeHandler;
 import com.cloud.fastbson.reader.BsonReader;
+import com.cloud.fastbson.types.MinKey;
 
 /**
  * Parser for BSON MinKey type (0xFF).
@@ -19,6 +19,6 @@ public enum MinKeyParser implements BsonTypeParser {
 
     @Override
     public Object parse(BsonReader reader) {
-        return TypeHandler.MinKey.INSTANCE;
+        return MinKey.INSTANCE;
     }
 }

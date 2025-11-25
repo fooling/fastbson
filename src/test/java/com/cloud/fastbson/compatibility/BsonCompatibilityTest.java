@@ -2,11 +2,17 @@ package com.cloud.fastbson.compatibility;
 
 import com.cloud.fastbson.handler.TypeHandler;
 import com.cloud.fastbson.reader.BsonReader;
+import com.cloud.fastbson.types.BinaryData;
+import com.cloud.fastbson.types.DBPointer;
+import com.cloud.fastbson.types.JavaScriptWithScope;
+import com.cloud.fastbson.types.MaxKey;
+import com.cloud.fastbson.types.MinKey;
+import com.cloud.fastbson.types.RegexValue;
+import com.cloud.fastbson.types.Timestamp;
 import org.bson.*;
 import org.bson.codecs.BsonDocumentCodec;
 import org.bson.codecs.EncoderContext;
 import org.bson.io.BasicOutputBuffer;
-import org.bson.types.Decimal128;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Test;
 
@@ -105,7 +111,7 @@ public class BsonCompatibilityTest {
         BsonReader reader = new BsonReader(bsonData);
         Map<String, Object> result = handler.parseDocument(reader);
 
-        TypeHandler.BinaryData parsedBinary = (TypeHandler.BinaryData) result.get("binaryField");
+        BinaryData parsedBinary = (BinaryData) result.get("binaryField");
         assertNotNull(parsedBinary);
         assertEquals(0x00, parsedBinary.subtype);
         assertArrayEquals(testData, parsedBinary.data);
@@ -122,7 +128,7 @@ public class BsonCompatibilityTest {
         BsonReader reader = new BsonReader(bsonData);
         Map<String, Object> result = handler.parseDocument(reader);
 
-        TypeHandler.RegexValue parsedRegex = (TypeHandler.RegexValue) result.get("regexField");
+        RegexValue parsedRegex = (RegexValue) result.get("regexField");
         assertNotNull(parsedRegex);
         assertEquals("^test.*", parsedRegex.pattern);
         assertEquals("i", parsedRegex.options);
@@ -139,7 +145,7 @@ public class BsonCompatibilityTest {
         BsonReader reader = new BsonReader(bsonData);
         Map<String, Object> result = handler.parseDocument(reader);
 
-        TypeHandler.Timestamp parsedTimestamp = (TypeHandler.Timestamp) result.get("timestampField");
+        Timestamp parsedTimestamp = (Timestamp) result.get("timestampField");
         assertNotNull(parsedTimestamp);
         assertEquals(1234567890, parsedTimestamp.seconds);
         assertEquals(42, parsedTimestamp.increment);
@@ -147,7 +153,7 @@ public class BsonCompatibilityTest {
 
     @Test
     public void testDecimal128() {
-        Decimal128 decimal = Decimal128.parse("123.456");
+        org.bson.types.Decimal128 decimal = org.bson.types.Decimal128.parse("123.456");
 
         BsonDocument doc = new BsonDocument()
             .append("decimalField", new BsonDecimal128(decimal));
@@ -156,7 +162,7 @@ public class BsonCompatibilityTest {
         BsonReader reader = new BsonReader(bsonData);
         Map<String, Object> result = handler.parseDocument(reader);
 
-        TypeHandler.Decimal128 parsedDecimal = (TypeHandler.Decimal128) result.get("decimalField");
+        com.cloud.fastbson.types.Decimal128 parsedDecimal = (com.cloud.fastbson.types.Decimal128) result.get("decimalField");
         assertNotNull(parsedDecimal);
         assertEquals(16, parsedDecimal.bytes.length);
     }
@@ -241,8 +247,8 @@ public class BsonCompatibilityTest {
         BsonReader reader = new BsonReader(bsonData);
         Map<String, Object> result = handler.parseDocument(reader);
 
-        TypeHandler.JavaScriptWithScope parsed =
-            (TypeHandler.JavaScriptWithScope) result.get("jsWithScopeField");
+        JavaScriptWithScope parsed =
+            (JavaScriptWithScope) result.get("jsWithScopeField");
         assertNotNull(parsed);
         assertEquals("function() { return x + y; }", parsed.code);
         assertEquals(10, parsed.scope.get("x"));
@@ -259,8 +265,8 @@ public class BsonCompatibilityTest {
         BsonReader reader = new BsonReader(bsonData);
         Map<String, Object> result = handler.parseDocument(reader);
 
-        assertTrue(result.get("minKey") instanceof TypeHandler.MinKey);
-        assertTrue(result.get("maxKey") instanceof TypeHandler.MaxKey);
+        assertTrue(result.get("minKey") instanceof MinKey);
+        assertTrue(result.get("maxKey") instanceof MaxKey);
     }
 
     @Test
@@ -290,7 +296,7 @@ public class BsonCompatibilityTest {
         BsonReader reader = new BsonReader(bsonData);
         Map<String, Object> result = handler.parseDocument(reader);
 
-        TypeHandler.DBPointer parsed = (TypeHandler.DBPointer) result.get("dbPointerField");
+        DBPointer parsed = (DBPointer) result.get("dbPointerField");
         assertNotNull(parsed);
         assertEquals("db.collection", parsed.namespace);
         assertEquals(oid.toHexString(), parsed.id);

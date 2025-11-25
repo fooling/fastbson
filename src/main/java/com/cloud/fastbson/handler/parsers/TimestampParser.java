@@ -1,8 +1,8 @@
 package com.cloud.fastbson.handler.parsers;
 
 import com.cloud.fastbson.handler.BsonTypeParser;
-import com.cloud.fastbson.handler.TypeHandler;
 import com.cloud.fastbson.reader.BsonReader;
+import com.cloud.fastbson.types.Timestamp;
 
 /**
  * Parser for BSON Timestamp type (0x11).
@@ -20,6 +20,6 @@ public enum TimestampParser implements BsonTypeParser {
         long value = reader.readInt64();
         int increment = (int) (value & 0xFFFFFFFFL);
         int seconds = (int) ((value >> 32) & 0xFFFFFFFFL);
-        return new TypeHandler.Timestamp(seconds, increment);
+        return new Timestamp(seconds, increment);
     }
 }
