@@ -23,6 +23,18 @@ import com.cloud.fastbson.util.BsonUtils;
  *   <li>Primitive types (int32, int64, double, boolean) are stored without boxing</li>
  *   <li>Uses BsonDocumentFactory to create appropriate implementation (Fast or Simple)</li>
  * </ul>
+ *
+ * <p><b>Phase 2.15: Zero-Copy Support</b><br>
+ * Added {@link #getValueSize(byte[], int)} for index building without parsing.
+ * Future Phase 2.16+ will add {@code readView()} method returning BsonArrayView for true zero-copy
+ * array access.
+ *
+ * <p><b>Array Format:</b>
+ * <ul>
+ *   <li>4 bytes: int32 array length (includes the length field itself and terminator)</li>
+ *   <li>variable: element list (with string indices as field names)</li>
+ *   <li>1 byte: 0x00 terminator</li>
+ * </ul>
  */
 public enum ArrayParser implements BsonTypeParser {
     INSTANCE;
@@ -44,6 +56,27 @@ public enum ArrayParser implements BsonTypeParser {
      */
     public void setFactory(BsonDocumentFactory factory) {
         this.factory = factory;
+    }
+
+    /**
+     * Zero-copy API: Get array value size (variable length).
+     *
+     * <p>Reads the int32 length prefix which includes the entire array size
+     * (length field + elements + terminator).
+     *
+     * <p>This enables fast skipping of unwanted arrays during index building.
+     *
+     * @param data BSON data array
+     * @param offset offset where array value starts (at the length field)
+     * @return total array size in bytes (as specified in the length field)
+     */
+    @Override
+    public int getValueSize(byte[] data, int offset) {
+        // Read int32 array length (little-endian)
+        return (data[offset] & 0xFF)
+            | ((data[offset + 1] & 0xFF) << 8)
+            | ((data[offset + 2] & 0xFF) << 16)
+            | ((data[offset + 3] & 0xFF) << 24);
     }
 
     @Override
