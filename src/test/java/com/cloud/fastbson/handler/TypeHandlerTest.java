@@ -471,6 +471,23 @@ public class TypeHandlerTest {
         });
     }
 
+    @Test
+    public void testParseValue_Array_EdgeCase_DocLengthBoundary() {
+        // Test edge case where docLength = 4 (minimal boundary)
+        // This tests the while loop exit condition: reader.position() >= endPosition
+        // In this case, endPosition = position + 4 - 4 = position, so loop never executes
+        ByteBuffer buffer = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN);
+        buffer.putInt(4);  // Document length = 4 (boundary case)
+
+        BsonReader reader = new BsonReader(buffer.array());
+
+        Object result = handler.parseValue(reader, BsonType.ARRAY);
+
+        // Should return empty array even with this edge case
+        assertTrue(result instanceof List);
+        assertTrue(((List<?>) result).isEmpty());
+    }
+
     // ==================== Helper Methods ====================
 
     private byte[] createDoubleData(double value) {
