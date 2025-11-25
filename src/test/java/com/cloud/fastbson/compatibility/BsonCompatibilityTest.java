@@ -84,9 +84,9 @@ public class BsonCompatibilityTest {
         BsonReader reader = new BsonReader(bsonData);
         Map<String, Object> result = handler.parseDocument(reader);
 
-        // 验证 DateTime
-        Date parsedDate = (Date) result.get("dateTime");
-        assertEquals(now.getTime(), parsedDate.getTime());
+        // 验证 DateTime (FastBSON 返回 Long 以提高性能)
+        Long parsedTimestamp = (Long) result.get("dateTime");
+        assertEquals(now.getTime(), parsedTimestamp.longValue());
 
         // 验证 ObjectId（FastBSON 返回 hex 字符串）
         String parsedObjectId = (String) result.get("objectId");
