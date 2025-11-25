@@ -1,17 +1,25 @@
 package com.cloud.fastbson.handler;
 
 import com.cloud.fastbson.exception.InvalidBsonTypeException;
+import com.cloud.fastbson.handler.parsers.BinaryParser;
 import com.cloud.fastbson.handler.parsers.BooleanParser;
+import com.cloud.fastbson.handler.parsers.DBPointerParser;
+import com.cloud.fastbson.handler.parsers.DateTimeParser;
+import com.cloud.fastbson.handler.parsers.Decimal128Parser;
 import com.cloud.fastbson.handler.parsers.DoubleParser;
 import com.cloud.fastbson.handler.parsers.Int32Parser;
 import com.cloud.fastbson.handler.parsers.Int64Parser;
+import com.cloud.fastbson.handler.parsers.MaxKeyParser;
+import com.cloud.fastbson.handler.parsers.MinKeyParser;
+import com.cloud.fastbson.handler.parsers.NullParser;
+import com.cloud.fastbson.handler.parsers.ObjectIdParser;
+import com.cloud.fastbson.handler.parsers.RegexParser;
 import com.cloud.fastbson.handler.parsers.StringParser;
+import com.cloud.fastbson.handler.parsers.TimestampParser;
 import com.cloud.fastbson.reader.BsonReader;
 import com.cloud.fastbson.util.BsonType;
-import com.cloud.fastbson.util.BsonUtils;
 
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -58,26 +66,23 @@ public class TypeHandler {
         PARSERS[BsonType.JAVASCRIPT & 0xFF] = StringParser.INSTANCE;  // JavaScript is also string
         PARSERS[BsonType.SYMBOL & 0xFF] = StringParser.INSTANCE;      // Symbol is also string
 
-        // Types requiring simple transformation: lambdas (TODO: Phase 2.10)
-        // PARSERS[BsonType.BOOLEAN & 0xFF] = (BsonReader reader) -> reader.readByte() != 0;
-        PARSERS[BsonType.DATE_TIME & 0xFF] = (BsonReader reader) -> new Date(reader.readInt64());
-        PARSERS[BsonType.OBJECT_ID & 0xFF] = (BsonReader reader) -> BsonUtils.bytesToHex(reader.readBytes(12));
+        // Medium complexity types: enum singleton parsers (Phase 2.10)
+        PARSERS[BsonType.DATE_TIME & 0xFF] = DateTimeParser.INSTANCE;
+        PARSERS[BsonType.OBJECT_ID & 0xFF] = ObjectIdParser.INSTANCE;
+        PARSERS[BsonType.NULL & 0xFF] = NullParser.INSTANCE;
+        PARSERS[BsonType.UNDEFINED & 0xFF] = NullParser.INSTANCE;     // Undefined is also null
+        PARSERS[BsonType.MIN_KEY & 0xFF] = MinKeyParser.INSTANCE;
+        PARSERS[BsonType.MAX_KEY & 0xFF] = MaxKeyParser.INSTANCE;
+        PARSERS[BsonType.BINARY & 0xFF] = BinaryParser.INSTANCE;
+        PARSERS[BsonType.REGEX & 0xFF] = RegexParser.INSTANCE;
+        PARSERS[BsonType.DB_POINTER & 0xFF] = DBPointerParser.INSTANCE;
+        PARSERS[BsonType.TIMESTAMP & 0xFF] = TimestampParser.INSTANCE;
+        PARSERS[BsonType.DECIMAL128 & 0xFF] = Decimal128Parser.INSTANCE;
 
-        // Null types
-        PARSERS[BsonType.NULL & 0xFF] = (BsonReader reader) -> null;
-        PARSERS[BsonType.UNDEFINED & 0xFF] = (BsonReader reader) -> null;
-
-        // Complex types: static method references
+        // Complex nested types: static method references (TODO: Phase 2.11)
         PARSERS[BsonType.DOCUMENT & 0xFF] = TypeHandler::parseDocumentStatic;
         PARSERS[BsonType.ARRAY & 0xFF] = TypeHandler::parseArrayStatic;
-        PARSERS[BsonType.BINARY & 0xFF] = TypeHandler::parseBinaryStatic;
-        PARSERS[BsonType.REGEX & 0xFF] = TypeHandler::parseRegexStatic;
-        PARSERS[BsonType.DB_POINTER & 0xFF] = TypeHandler::parseDBPointerStatic;
         PARSERS[BsonType.JAVASCRIPT_WITH_SCOPE & 0xFF] = TypeHandler::parseJavaScriptWithScopeStatic;
-        PARSERS[BsonType.TIMESTAMP & 0xFF] = TypeHandler::parseTimestampStatic;
-        PARSERS[BsonType.DECIMAL128 & 0xFF] = TypeHandler::parseDecimal128Static;
-        PARSERS[BsonType.MIN_KEY & 0xFF] = (BsonReader reader) -> new MinKey();
-        PARSERS[BsonType.MAX_KEY & 0xFF] = (BsonReader reader) -> new MaxKey();
     }
 
     /**
@@ -168,36 +173,6 @@ public class TypeHandler {
         return array;
     }
 
-    /**
-     * Parses binary data (int32 length + subtype + bytes).
-     * Static method for use in lookup table.
-     */
-    private static BinaryData parseBinaryStatic(BsonReader reader) {
-        int length = reader.readInt32();
-        byte subtype = reader.readByte();
-        byte[] data = reader.readBytes(length);
-        return new BinaryData(subtype, data);
-    }
-
-    /**
-     * Parses a regular expression (cstring pattern + cstring options).
-     * Static method for use in lookup table.
-     */
-    private static RegexValue parseRegexStatic(BsonReader reader) {
-        String pattern = reader.readCString();
-        String options = reader.readCString();
-        return new RegexValue(pattern, options);
-    }
-
-    /**
-     * Parses a DBPointer (deprecated: string + 12-byte ObjectId).
-     * Static method for use in lookup table.
-     */
-    private static DBPointer parseDBPointerStatic(BsonReader reader) {
-        String namespace = reader.readString();
-        byte[] id = reader.readBytes(12);
-        return new DBPointer(namespace, BsonUtils.bytesToHex(id));
-    }
 
     /**
      * Parses JavaScript code with scope (int32 total_length + string code + document scope).
@@ -208,27 +183,6 @@ public class TypeHandler {
         String code = reader.readString();
         Map<String, Object> scope = INSTANCE.parseDocument(reader);
         return new JavaScriptWithScope(code, scope);
-    }
-
-    /**
-     * Parses a timestamp (int64: increment in low 32 bits, seconds in high 32 bits).
-     * Static method for use in lookup table.
-     */
-    private static Timestamp parseTimestampStatic(BsonReader reader) {
-        long value = reader.readInt64();
-        int increment = (int) (value & 0xFFFFFFFFL);
-        int seconds = (int) ((value >> 32) & 0xFFFFFFFFL);
-        return new Timestamp(seconds, increment);
-    }
-
-    /**
-     * Parses a 128-bit decimal (16 bytes).
-     * Note: Java doesn't have native 128-bit decimal, so we store as bytes.
-     * Static method for use in lookup table.
-     */
-    private static Decimal128 parseDecimal128Static(BsonReader reader) {
-        byte[] bytes = reader.readBytes(16);
-        return new Decimal128(bytes);
     }
 
     // Helper classes for complex BSON types
@@ -314,8 +268,15 @@ public class TypeHandler {
 
     /**
      * Represents BSON MinKey.
+     * Uses singleton pattern to avoid allocations.
      */
     public static class MinKey {
+        public static final MinKey INSTANCE = new MinKey();
+
+        private MinKey() {
+            // Private constructor for singleton
+        }
+
         @Override
         public String toString() {
             return "MinKey";
@@ -324,8 +285,15 @@ public class TypeHandler {
 
     /**
      * Represents BSON MaxKey.
+     * Uses singleton pattern to avoid allocations.
      */
     public static class MaxKey {
+        public static final MaxKey INSTANCE = new MaxKey();
+
+        private MaxKey() {
+            // Private constructor for singleton
+        }
+
         @Override
         public String toString() {
             return "MaxKey";

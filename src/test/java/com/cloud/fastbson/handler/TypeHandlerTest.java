@@ -245,8 +245,9 @@ public class TypeHandlerTest {
 
         Object result = handler.parseValue(reader, BsonType.DATE_TIME);
 
-        assertTrue(result instanceof Date);
-        assertEquals(timestamp, ((Date) result).getTime());
+        // DateTime now returns Long for optimal performance
+        assertTrue(result instanceof Long);
+        assertEquals(timestamp, ((Long) result).longValue());
     }
 
     // ==================== Type: Null (0x0A) ====================
