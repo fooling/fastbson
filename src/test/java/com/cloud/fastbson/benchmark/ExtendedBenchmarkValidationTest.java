@@ -1,16 +1,15 @@
 package com.cloud.fastbson.benchmark;
 
-import com.cloud.fastbson.handler.TypeHandler;
-import com.cloud.fastbson.reader.BsonReader;
+import com.cloud.fastbson.document.BsonDocument;
+import com.cloud.fastbson.FastBson;
+
 import org.bson.BsonBinaryReader;
-import org.bson.BsonDocument;
 import org.bson.codecs.BsonDocumentCodec;
 import org.bson.codecs.DecoderContext;
 import org.bson.io.ByteBufferBsonInput;
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
-import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -18,10 +17,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * 扩展 Benchmark 场景验证测试
  *
  * <p>测试新增的 benchmark 场景并记录性能基线数据
+ * <p>使用零装箱API (Phase 2.13+) 进行性能测试
  */
 public class ExtendedBenchmarkValidationTest {
-
-    private final TypeHandler handler = new TypeHandler();
 
     @Test
     public void testStringHeavyDocument() {
@@ -31,11 +29,11 @@ public class ExtendedBenchmarkValidationTest {
         assertTrue(bsonData.length > 0);
         System.out.println("String Heavy Document size: " + bsonData.length + " bytes");
 
-        // 测试 FastBSON
+        // 测试 FastBSON (零装箱API)
         long fastbsonStart = System.nanoTime();
         for (int i = 0; i < 1000; i++) {
-            BsonReader reader = new BsonReader(bsonData);
-            Map<String, Object> result = handler.parseDocument(reader);
+            
+            BsonDocument result = (BsonDocument) FastBson.parse(bsonData);
             assertEquals(50, result.size());
         }
         long fastbsonTime = System.nanoTime() - fastbsonStart;
@@ -46,7 +44,7 @@ public class ExtendedBenchmarkValidationTest {
             BsonBinaryReader reader = new BsonBinaryReader(new ByteBufferBsonInput(
                 new org.bson.ByteBufNIO(ByteBuffer.wrap(bsonData))));
             BsonDocumentCodec codec = new BsonDocumentCodec();
-            BsonDocument doc = codec.decode(reader, DecoderContext.builder().build());
+            org.bson.BsonDocument doc = codec.decode(reader, DecoderContext.builder().build());
             assertEquals(50, doc.size());
             reader.close();
         }
@@ -65,11 +63,11 @@ public class ExtendedBenchmarkValidationTest {
         assertTrue(bsonData.length > 0);
         System.out.println("Pure String Document size: " + bsonData.length + " bytes");
 
-        // 测试 FastBSON
+        // 测试 FastBSON (零装箱API)
         long fastbsonStart = System.nanoTime();
         for (int i = 0; i < 1000; i++) {
-            BsonReader reader = new BsonReader(bsonData);
-            Map<String, Object> result = handler.parseDocument(reader);
+            
+            BsonDocument result = (BsonDocument) FastBson.parse(bsonData);
             assertEquals(50, result.size());
         }
         long fastbsonTime = System.nanoTime() - fastbsonStart;
@@ -80,7 +78,7 @@ public class ExtendedBenchmarkValidationTest {
             BsonBinaryReader reader = new BsonBinaryReader(new ByteBufferBsonInput(
                 new org.bson.ByteBufNIO(ByteBuffer.wrap(bsonData))));
             BsonDocumentCodec codec = new BsonDocumentCodec();
-            BsonDocument doc = codec.decode(reader, DecoderContext.builder().build());
+            org.bson.BsonDocument doc = codec.decode(reader, DecoderContext.builder().build());
             assertEquals(50, doc.size());
             reader.close();
         }
@@ -99,11 +97,11 @@ public class ExtendedBenchmarkValidationTest {
         assertTrue(bsonData.length > 0);
         System.out.println("Numeric Heavy Document size: " + bsonData.length + " bytes");
 
-        // 测试 FastBSON
+        // 测试 FastBSON (零装箱API - 此场景最能体现零装箱优势)
         long fastbsonStart = System.nanoTime();
         for (int i = 0; i < 1000; i++) {
-            BsonReader reader = new BsonReader(bsonData);
-            Map<String, Object> result = handler.parseDocument(reader);
+            
+            BsonDocument result = (BsonDocument) FastBson.parse(bsonData);
             assertEquals(50, result.size());
         }
         long fastbsonTime = System.nanoTime() - fastbsonStart;
@@ -114,7 +112,7 @@ public class ExtendedBenchmarkValidationTest {
             BsonBinaryReader reader = new BsonBinaryReader(new ByteBufferBsonInput(
                 new org.bson.ByteBufNIO(ByteBuffer.wrap(bsonData))));
             BsonDocumentCodec codec = new BsonDocumentCodec();
-            BsonDocument doc = codec.decode(reader, DecoderContext.builder().build());
+            org.bson.BsonDocument doc = codec.decode(reader, DecoderContext.builder().build());
             assertEquals(50, doc.size());
             reader.close();
         }
@@ -133,11 +131,11 @@ public class ExtendedBenchmarkValidationTest {
         assertTrue(bsonData.length > 0);
         System.out.println("Array Heavy Document size: " + bsonData.length + " bytes");
 
-        // 测试 FastBSON
+        // 测试 FastBSON (零装箱API)
         long fastbsonStart = System.nanoTime();
         for (int i = 0; i < 1000; i++) {
-            BsonReader reader = new BsonReader(bsonData);
-            Map<String, Object> result = handler.parseDocument(reader);
+            
+            BsonDocument result = (BsonDocument) FastBson.parse(bsonData);
             assertEquals(20, result.size());
         }
         long fastbsonTime = System.nanoTime() - fastbsonStart;
@@ -148,7 +146,7 @@ public class ExtendedBenchmarkValidationTest {
             BsonBinaryReader reader = new BsonBinaryReader(new ByteBufferBsonInput(
                 new org.bson.ByteBufNIO(ByteBuffer.wrap(bsonData))));
             BsonDocumentCodec codec = new BsonDocumentCodec();
-            BsonDocument doc = codec.decode(reader, DecoderContext.builder().build());
+            org.bson.BsonDocument doc = codec.decode(reader, DecoderContext.builder().build());
             assertEquals(20, doc.size());
             reader.close();
         }
@@ -168,11 +166,11 @@ public class ExtendedBenchmarkValidationTest {
         System.out.println("100KB Document size: " + bsonData.length + " bytes (" +
             String.format("%.1f", bsonData.length / 1024.0) + " KB)");
 
-        // 测试 FastBSON
+        // 测试 FastBSON (零装箱API)
         long fastbsonStart = System.nanoTime();
         for (int i = 0; i < 100; i++) {
-            BsonReader reader = new BsonReader(bsonData);
-            Map<String, Object> result = handler.parseDocument(reader);
+            
+            BsonDocument result = (BsonDocument) FastBson.parse(bsonData);
             assertTrue(result.size() > 0);
         }
         long fastbsonTime = System.nanoTime() - fastbsonStart;
@@ -183,7 +181,7 @@ public class ExtendedBenchmarkValidationTest {
             BsonBinaryReader reader = new BsonBinaryReader(new ByteBufferBsonInput(
                 new org.bson.ByteBufNIO(ByteBuffer.wrap(bsonData))));
             BsonDocumentCodec codec = new BsonDocumentCodec();
-            BsonDocument doc = codec.decode(reader, DecoderContext.builder().build());
+            org.bson.BsonDocument doc = codec.decode(reader, DecoderContext.builder().build());
             assertTrue(doc.size() > 0);
             reader.close();
         }
@@ -203,11 +201,11 @@ public class ExtendedBenchmarkValidationTest {
         System.out.println("1MB Document size: " + bsonData.length + " bytes (" +
             String.format("%.2f", bsonData.length / (1024.0 * 1024.0)) + " MB)");
 
-        // 测试 FastBSON（减少迭代次数）
+        // 测试 FastBSON (零装箱API)
         long fastbsonStart = System.nanoTime();
         for (int i = 0; i < 10; i++) {
-            BsonReader reader = new BsonReader(bsonData);
-            Map<String, Object> result = handler.parseDocument(reader);
+            
+            BsonDocument result = (BsonDocument) FastBson.parse(bsonData);
             assertTrue(result.size() > 0);
         }
         long fastbsonTime = System.nanoTime() - fastbsonStart;
@@ -218,7 +216,7 @@ public class ExtendedBenchmarkValidationTest {
             BsonBinaryReader reader = new BsonBinaryReader(new ByteBufferBsonInput(
                 new org.bson.ByteBufNIO(ByteBuffer.wrap(bsonData))));
             BsonDocumentCodec codec = new BsonDocumentCodec();
-            BsonDocument doc = codec.decode(reader, DecoderContext.builder().build());
+            org.bson.BsonDocument doc = codec.decode(reader, DecoderContext.builder().build());
             assertTrue(doc.size() > 0);
             reader.close();
         }

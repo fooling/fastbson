@@ -1,16 +1,14 @@
 package com.cloud.fastbson.benchmark;
 
-import com.cloud.fastbson.handler.TypeHandler;
-import com.cloud.fastbson.reader.BsonReader;
+import com.cloud.fastbson.FastBson;
+import com.cloud.fastbson.document.BsonDocument;
 import org.bson.BsonBinaryReader;
-import org.bson.BsonDocument;
 import org.bson.codecs.BsonDocumentCodec;
 import org.bson.codecs.DecoderContext;
 import org.bson.io.ByteBufferBsonInput;
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
-import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -23,16 +21,14 @@ public class BenchmarkValidationTest {
     public void testSmallDocumentParsing() {
         byte[] bsonData = BsonTestDataGenerator.generateDocument(10);
 
-        // FastBSON 解析
-        BsonReader reader = new BsonReader(bsonData);
-        TypeHandler handler = new TypeHandler();
-        Map<String, Object> fastbsonResult = handler.parseDocument(reader);
+        // FastBSON 解析 (使用零装箱API)
+        BsonDocument fastbsonResult = FastBson.parse(bsonData);
 
         // MongoDB BSON 解析
         BsonBinaryReader mongoReader = new BsonBinaryReader(new ByteBufferBsonInput(
             new org.bson.ByteBufNIO(ByteBuffer.wrap(bsonData))));
         BsonDocumentCodec codec = new BsonDocumentCodec();
-        BsonDocument mongoResult = codec.decode(mongoReader, DecoderContext.builder().build());
+        org.bson.BsonDocument mongoResult = codec.decode(mongoReader, DecoderContext.builder().build());
         mongoReader.close();
 
         // 验证
@@ -46,9 +42,7 @@ public class BenchmarkValidationTest {
     public void testMediumDocumentParsing() {
         byte[] bsonData = BsonTestDataGenerator.generateDocument(50);
 
-        BsonReader reader = new BsonReader(bsonData);
-        TypeHandler handler = new TypeHandler();
-        Map<String, Object> result = handler.parseDocument(reader);
+        BsonDocument result = FastBson.parse(bsonData);
 
         assertNotNull(result);
         assertEquals(50, result.size());
@@ -58,9 +52,7 @@ public class BenchmarkValidationTest {
     public void testLargeDocumentParsing() {
         byte[] bsonData = BsonTestDataGenerator.generateDocument(100);
 
-        BsonReader reader = new BsonReader(bsonData);
-        TypeHandler handler = new TypeHandler();
-        Map<String, Object> result = handler.parseDocument(reader);
+        BsonDocument result = FastBson.parse(bsonData);
 
         assertNotNull(result);
         assertEquals(100, result.size());
@@ -75,14 +67,12 @@ public class BenchmarkValidationTest {
             assertTrue(bsonData.length > 4, "BSON data should be at least 5 bytes (4 for length + 1 for terminator)");
 
             // 验证可以被两个库解析
-            BsonReader fastbsonReader = new BsonReader(bsonData);
-            TypeHandler handler = new TypeHandler();
-            Map<String, Object> fastbsonResult = handler.parseDocument(fastbsonReader);
+            BsonDocument fastbsonResult = FastBson.parse(bsonData);
 
             BsonBinaryReader mongoReader = new BsonBinaryReader(new ByteBufferBsonInput(
                 new org.bson.ByteBufNIO(ByteBuffer.wrap(bsonData))));
             BsonDocumentCodec codec = new BsonDocumentCodec();
-            BsonDocument mongoResult = codec.decode(mongoReader, DecoderContext.builder().build());
+            org.bson.BsonDocument mongoResult = codec.decode(mongoReader, DecoderContext.builder().build());
             mongoReader.close();
 
             assertEquals(fieldCount, fastbsonResult.size());
@@ -96,17 +86,15 @@ public class BenchmarkValidationTest {
 
         // 预热
         for (int i = 0; i < 100; i++) {
-            BsonReader reader = new BsonReader(bsonData);
-            TypeHandler handler = new TypeHandler();
-            handler.parseDocument(reader);
+            FastBson.parse(bsonData);
         }
 
-        // FastBSON 性能测试
+        // FastBSON 性能测试 (零装箱API)
         long fastbsonStart = System.nanoTime();
         for (int i = 0; i < 10000; i++) {
-            BsonReader reader = new BsonReader(bsonData);
-            TypeHandler handler = new TypeHandler();
-            handler.parseDocument(reader);
+            BsonDocument doc = FastBson.parse(bsonData);
+            // 访问一些字段来确保真实使用场景
+            int size = doc.size();
         }
         long fastbsonTime = System.nanoTime() - fastbsonStart;
 
@@ -116,7 +104,9 @@ public class BenchmarkValidationTest {
             BsonBinaryReader reader = new BsonBinaryReader(new ByteBufferBsonInput(
                 new org.bson.ByteBufNIO(ByteBuffer.wrap(bsonData))));
             BsonDocumentCodec codec = new BsonDocumentCodec();
-            codec.decode(reader, DecoderContext.builder().build());
+            org.bson.BsonDocument doc = codec.decode(reader, DecoderContext.builder().build());
+            // 访问一些字段来确保真实使用场景
+            int size = doc.size();
             reader.close();
         }
         long mongoTime = System.nanoTime() - mongoStart;
