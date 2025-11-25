@@ -25,6 +25,18 @@ import com.cloud.fastbson.util.BsonUtils;
  *   <li>Primitive types (int32, int64, double, boolean) are stored without boxing</li>
  *   <li>Uses BsonDocumentFactory to create appropriate implementation (Fast or Simple)</li>
  * </ul>
+ *
+ * <p><b>Phase 2.15: Zero-Copy Support</b><br>
+ * Added {@link #getValueSize(byte[], int)} for index building without parsing.
+ * Future Phase 2.16+ will add {@code readView()} method returning BsonView for true zero-copy
+ * nested document access.
+ *
+ * <p><b>Document Format:</b>
+ * <ul>
+ *   <li>4 bytes: int32 document length (includes the length field itself and terminator)</li>
+ *   <li>variable: element list</li>
+ *   <li>1 byte: 0x00 terminator</li>
+ * </ul>
  */
 public enum DocumentParser implements BsonTypeParser {
     INSTANCE;
@@ -46,6 +58,27 @@ public enum DocumentParser implements BsonTypeParser {
      */
     public void setFactory(BsonDocumentFactory factory) {
         this.factory = factory;
+    }
+
+    /**
+     * Zero-copy API: Get document value size (variable length).
+     *
+     * <p>Reads the int32 length prefix which includes the entire document size
+     * (length field + elements + terminator).
+     *
+     * <p>This enables fast skipping of unwanted nested documents during index building.
+     *
+     * @param data BSON data array
+     * @param offset offset where document value starts (at the length field)
+     * @return total document size in bytes (as specified in the length field)
+     */
+    @Override
+    public int getValueSize(byte[] data, int offset) {
+        // Read int32 document length (little-endian)
+        return (data[offset] & 0xFF)
+            | ((data[offset + 1] & 0xFF) << 8)
+            | ((data[offset + 2] & 0xFF) << 16)
+            | ((data[offset + 3] & 0xFF) << 24);
     }
 
     @Override
