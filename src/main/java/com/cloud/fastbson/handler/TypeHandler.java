@@ -16,11 +16,80 @@ import java.util.Map;
  *
  * <p>Provides type-specific parsing methods for all BSON value types
  * according to the MongoDB 3.4 BSON specification.
+ *
+ * <p>Uses Strategy Pattern with lookup table for O(1) type dispatch.
+ * Uses singleton pattern to reduce GC pressure.
  */
 public class TypeHandler {
 
     /**
+     * Singleton instance for internal use (reduces GC pressure).
+     */
+    private static final TypeHandler INSTANCE = new TypeHandler();
+
+    /**
+     * Functional interface for BSON type parsing strategy.
+     */
+    @FunctionalInterface
+    interface BsonTypeParser {
+        /**
+         * Parses a BSON value from the reader.
+         *
+         * @param reader the BsonReader positioned at the value
+         * @return the parsed value
+         */
+        Object parse(BsonReader reader);
+    }
+
+    /**
+     * Lookup table for O(1) type dispatch.
+     * Index is BSON type byte (as unsigned int 0-255).
+     */
+    private static final BsonTypeParser[] PARSERS = new BsonTypeParser[256];
+
+    static {
+        // Initialize lookup table with type-specific parsers
+        initializeParsers();
+    }
+
+    /**
+     * Initializes the parser lookup table.
+     */
+    private static void initializeParsers() {
+        // Simple types: method references
+        PARSERS[BsonType.DOUBLE & 0xFF] = BsonReader::readDouble;
+        PARSERS[BsonType.INT32 & 0xFF] = BsonReader::readInt32;
+        PARSERS[BsonType.INT64 & 0xFF] = BsonReader::readInt64;
+        PARSERS[BsonType.STRING & 0xFF] = BsonReader::readString;
+        PARSERS[BsonType.JAVASCRIPT & 0xFF] = BsonReader::readString;
+        PARSERS[BsonType.SYMBOL & 0xFF] = BsonReader::readString;
+
+        // Types requiring simple transformation: lambdas
+        PARSERS[BsonType.BOOLEAN & 0xFF] = (BsonReader reader) -> reader.readByte() != 0;
+        PARSERS[BsonType.DATE_TIME & 0xFF] = (BsonReader reader) -> new Date(reader.readInt64());
+        PARSERS[BsonType.OBJECT_ID & 0xFF] = (BsonReader reader) -> BsonUtils.bytesToHex(reader.readBytes(12));
+
+        // Null types
+        PARSERS[BsonType.NULL & 0xFF] = (BsonReader reader) -> null;
+        PARSERS[BsonType.UNDEFINED & 0xFF] = (BsonReader reader) -> null;
+
+        // Complex types: static method references
+        PARSERS[BsonType.DOCUMENT & 0xFF] = TypeHandler::parseDocumentStatic;
+        PARSERS[BsonType.ARRAY & 0xFF] = TypeHandler::parseArrayStatic;
+        PARSERS[BsonType.BINARY & 0xFF] = TypeHandler::parseBinaryStatic;
+        PARSERS[BsonType.REGEX & 0xFF] = TypeHandler::parseRegexStatic;
+        PARSERS[BsonType.DB_POINTER & 0xFF] = TypeHandler::parseDBPointerStatic;
+        PARSERS[BsonType.JAVASCRIPT_WITH_SCOPE & 0xFF] = TypeHandler::parseJavaScriptWithScopeStatic;
+        PARSERS[BsonType.TIMESTAMP & 0xFF] = TypeHandler::parseTimestampStatic;
+        PARSERS[BsonType.DECIMAL128 & 0xFF] = TypeHandler::parseDecimal128Static;
+        PARSERS[BsonType.MIN_KEY & 0xFF] = (BsonReader reader) -> new MinKey();
+        PARSERS[BsonType.MAX_KEY & 0xFF] = (BsonReader reader) -> new MaxKey();
+    }
+
+    /**
      * Parses a BSON value based on its type byte.
+     *
+     * <p>Uses lookup table for O(1) dispatch instead of switch-case.
      *
      * @param reader the BsonReader positioned at the value
      * @param type the BSON type byte
@@ -28,91 +97,26 @@ public class TypeHandler {
      * @throws InvalidBsonTypeException if the type is unsupported
      */
     public Object parseValue(BsonReader reader, byte type) {
-        switch (type) {
-            case BsonType.DOUBLE:
-                return parseDouble(reader);
-
-            case BsonType.STRING:
-                return parseString(reader);
-
-            case BsonType.DOCUMENT:
-                return parseDocument(reader);
-
-            case BsonType.ARRAY:
-                return parseArray(reader);
-
-            case BsonType.BINARY:
-                return parseBinary(reader);
-
-            case BsonType.UNDEFINED:
-                return null; // Deprecated, treat as null
-
-            case BsonType.OBJECT_ID:
-                return parseObjectId(reader);
-
-            case BsonType.BOOLEAN:
-                return parseBoolean(reader);
-
-            case BsonType.DATE_TIME:
-                return parseDateTime(reader);
-
-            case BsonType.NULL:
-                return null;
-
-            case BsonType.REGEX:
-                return parseRegex(reader);
-
-            case BsonType.DB_POINTER:
-                return parseDBPointer(reader);
-
-            case BsonType.JAVASCRIPT:
-                return parseJavaScript(reader);
-
-            case BsonType.SYMBOL:
-                return parseSymbol(reader);
-
-            case BsonType.JAVASCRIPT_WITH_SCOPE:
-                return parseJavaScriptWithScope(reader);
-
-            case BsonType.INT32:
-                return parseInt32(reader);
-
-            case BsonType.TIMESTAMP:
-                return parseTimestamp(reader);
-
-            case BsonType.INT64:
-                return parseInt64(reader);
-
-            case BsonType.DECIMAL128:
-                return parseDecimal128(reader);
-
-            case BsonType.MIN_KEY:
-                return new MinKey();
-
-            case BsonType.MAX_KEY:
-                return new MaxKey();
-
-            default:
-                throw new InvalidBsonTypeException(type);
+        BsonTypeParser parser = PARSERS[type & 0xFF];
+        if (parser != null) {
+            return parser.parse(reader);
         }
+        throw new InvalidBsonTypeException(type);
     }
 
-    /**
-     * Parses a double value (8 bytes IEEE 754).
-     */
-    private Double parseDouble(BsonReader reader) {
-        return reader.readDouble();
-    }
+    // ==================== Complex Type Parsers (Static Methods) ====================
 
     /**
-     * Parses a string value (int32 length + UTF-8 + null terminator).
+     * Parses an embedded document.
+     * Static method for use in lookup table.
      */
-    private String parseString(BsonReader reader) {
-        return reader.readString();
+    private static Map<String, Object> parseDocumentStatic(BsonReader reader) {
+        return INSTANCE.parseDocument(reader);
     }
 
     /**
      * Parses an embedded document.
+     * Public method for external use (e.g., PartialParser).
      */
     public Map<String, Object> parseDocument(BsonReader reader) {
         int docLength = reader.readInt32();
@@ -136,12 +140,28 @@ public class TypeHandler {
 
     /**
      * Parses an array (same as document, but keys are "0", "1", "2", etc.).
+     * Static method for use in lookup table.
      */
-    private List<Object> parseArray(BsonReader reader) {
-        Map<String, Object> arrayDoc = parseDocument(reader);
-        List<Object> array = new ArrayList<Object>();
+    private static List<Object> parseArrayStatic(BsonReader reader) {
+        // Read array as document first
+        int docLength = reader.readInt32();
+        int endPosition = reader.position() + docLength - 4;
 
-        // Arrays in BSON use string indices "0", "1", "2"...
+        Map<String, Object> arrayDoc = new HashMap<String, Object>();
+
+        while (reader.position() < endPosition) {
+            byte type = reader.readByte();
+            if (type == BsonType.END_OF_DOCUMENT) {
+                break;
+            }
+
+            String fieldName = reader.readCString();
+            Object value = INSTANCE.parseValue(reader, type);
+            arrayDoc.put(fieldName, value);
+        }
+
+        // Convert to list (arrays use string indices "0", "1", "2"...)
+        List<Object> array = new ArrayList<Object>();
         for (int i = 0; i < arrayDoc.size(); i++) {
             String key = String.valueOf(i);
             if (arrayDoc.containsKey(key)) {
@@ -156,8 +176,9 @@ public class TypeHandler {
 
     /**
      * Parses binary data (int32 length + subtype + bytes).
+     * Static method for use in lookup table.
      */
-    private BinaryData parseBinary(BsonReader reader) {
+    private static BinaryData parseBinaryStatic(BsonReader reader) {
         int length = reader.readInt32();
         byte subtype = reader.readByte();
         byte[] data = reader.readBytes(length);
@@ -165,32 +186,10 @@ public class TypeHandler {
     }
 
     /**
-     * Parses an ObjectId (12 bytes).
-     */
-    private String parseObjectId(BsonReader reader) {
-        byte[] bytes = reader.readBytes(12);
-        return BsonUtils.bytesToHex(bytes);
-    }
-
-    /**
-     * Parses a boolean value (1 byte: 0x00 or 0x01).
-     */
-    private Boolean parseBoolean(BsonReader reader) {
-        return reader.readByte() != 0;
-    }
-
-    /**
-     * Parses a UTC datetime (int64 milliseconds since Unix epoch).
-     */
-    private Date parseDateTime(BsonReader reader) {
-        long milliseconds = reader.readInt64();
-        return new Date(milliseconds);
-    }
-
-    /**
      * Parses a regular expression (cstring pattern + cstring options).
+     * Static method for use in lookup table.
      */
-    private RegexValue parseRegex(BsonReader reader) {
+    private static RegexValue parseRegexStatic(BsonReader reader) {
         String pattern = reader.readCString();
         String options = reader.readCString();
         return new RegexValue(pattern, options);
@@ -198,48 +197,30 @@ public class TypeHandler {
 
     /**
      * Parses a DBPointer (deprecated: string + 12-byte ObjectId).
+     * Static method for use in lookup table.
      */
-    private DBPointer parseDBPointer(BsonReader reader) {
+    private static DBPointer parseDBPointerStatic(BsonReader reader) {
         String namespace = reader.readString();
         byte[] id = reader.readBytes(12);
         return new DBPointer(namespace, BsonUtils.bytesToHex(id));
     }
 
     /**
-     * Parses JavaScript code (string).
-     */
-    private String parseJavaScript(BsonReader reader) {
-        return reader.readString();
-    }
-
-    /**
-     * Parses a Symbol (deprecated: string).
-     */
-    private String parseSymbol(BsonReader reader) {
-        return reader.readString();
-    }
-
-    /**
      * Parses JavaScript code with scope (int32 total_length + string code + document scope).
+     * Static method for use in lookup table.
      */
-    private JavaScriptWithScope parseJavaScriptWithScope(BsonReader reader) {
+    private static JavaScriptWithScope parseJavaScriptWithScopeStatic(BsonReader reader) {
         int totalLength = reader.readInt32();
         String code = reader.readString();
-        Map<String, Object> scope = parseDocument(reader);
+        Map<String, Object> scope = INSTANCE.parseDocument(reader);
         return new JavaScriptWithScope(code, scope);
     }
 
     /**
-     * Parses a 32-bit integer.
-     */
-    private Integer parseInt32(BsonReader reader) {
-        return reader.readInt32();
-    }
-
-    /**
      * Parses a timestamp (int64: increment in low 32 bits, seconds in high 32 bits).
+     * Static method for use in lookup table.
      */
-    private Timestamp parseTimestamp(BsonReader reader) {
+    private static Timestamp parseTimestampStatic(BsonReader reader) {
         long value = reader.readInt64();
         int increment = (int) (value & 0xFFFFFFFFL);
         int seconds = (int) ((value >> 32) & 0xFFFFFFFFL);
@@ -247,17 +228,11 @@ public class TypeHandler {
     }
 
     /**
-     * Parses a 64-bit integer.
-     */
-    private Long parseInt64(BsonReader reader) {
-        return reader.readInt64();
-    }
-
-    /**
      * Parses a 128-bit decimal (16 bytes).
      * Note: Java doesn't have native 128-bit decimal, so we store as bytes.
+     * Static method for use in lookup table.
      */
-    private Decimal128 parseDecimal128(BsonReader reader) {
+    private static Decimal128 parseDecimal128Static(BsonReader reader) {
         byte[] bytes = reader.readBytes(16);
         return new Decimal128(bytes);
     }
