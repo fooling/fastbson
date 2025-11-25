@@ -245,9 +245,134 @@
     * 模块化设计，易于扩展
   - 完成时间：2025-11-25
 
+- [x] **Phase 2.9**: 提取简单类型Parser（Enum Singleton模式）
+  - 提取 DoubleParser, Int32Parser, Int64Parser, StringParser, BooleanParser
+  - 所有Parser使用enum singleton模式实现
+  - 完成时间：2025-11-25
+
+- [x] **Phase 2.10**: 提取中等复杂度Parser
+  - 提取 DateTimeParser, ObjectIdParser, NullParser, MinKeyParser, MaxKeyParser
+  - 提取 BinaryParser, RegexParser, DBPointerParser, TimestampParser, Decimal128Parser
+  - 完成时间：2025-11-25
+
+- [x] **Phase 2.11**: 提取复杂嵌套类型Parser
+  - 创建 DocumentParser（递归解析）
+  - 创建 ArrayParser（文档转列表）
+  - 创建 JavaScriptWithScopeParser
+  - 使用依赖注入模式（setHandler）支持递归
+  - 完成时间：2025-11-25
+
+- [x] **Phase 2.12**: Helper类型移至独立包 + 最终清理
+  - 创建 `com.cloud.fastbson.types` 包
+  - 移动8个helper类：BinaryData, RegexValue, DBPointer, JavaScriptWithScope, Timestamp, Decimal128, MinKey, MaxKey
+  - TypeHandler减少至121行（从302行减少60%）
+  - 更新所有测试文件引用
+  - 所有289个测试通过，100%覆盖率
+  - **性能保持**：2.65x (Pure String), 2.18x (Numeric), 3.22x (综合)
+  - 完成时间：2025-11-25
+
+**Phase 2 (2.1-2.12) 总结**：
+- 12/12 任务全部完成 ✅
+- 测试数量：289 个（全部通过）
+- 代码覆盖率：100% 分支覆盖
+- 架构优化：模块化、清晰职责分离
+- 性能稳定：2-3x vs MongoDB（已建立基线）
+
 ---
 
-## Phase 3: 性能优化（预计 1-2周）
+## Phase 2.13-2.19: 激进性能优化（预计 10-13天）
+
+**目标**：消除装箱开销，实现 5-6x vs MongoDB 的性能目标
+
+**核心策略**：
+1. 引入统一的BsonDocument接口（零装箱访问）
+2. 提供两种实现：Simple（零依赖）和Fast（fastutil高性能）
+3. 通过工厂模式实现可切换
+4. 保持API向后兼容
+
+### 任务列表
+
+- [ ] **Phase 2.13**: 引入BsonValue统一类型系统（混合架构）
+  - **子任务A**：抽象接口层设计（1天）
+    * 设计 BsonDocument 接口（支持primitive无装箱访问）
+    * 设计 BsonDocumentBuilder 接口（构建器模式）
+    * 设计 BsonArray 接口
+    * 设计 BsonDocumentFactory 接口（工厂模式）
+  - **子任务B**：Simple实现（零依赖）（2天）
+    * 实现 SimpleBsonValue (Union类型，48字节)
+    * 实现小整数缓存（-128~127）
+    * 实现Boolean单例（TRUE/FALSE）
+    * 实现 SimpleBsonDocument（使用HashMap<String, SimpleBsonValue>）
+    * 实现 SimpleBsonDocumentBuilder
+    * 实现 SimpleBsonDocumentFactory
+    * 预期性能：**1.25x** vs 当前装箱
+  - **子任务C**：Fast实现（fastutil）（2天）
+    * 添加fastutil依赖（可选）
+    * 实现 FastBsonDocument（按类型分组存储）
+      - IntIntMap：field_id → int（零装箱）
+      - IntLongMap：field_id → long（零装箱）
+      - IntDoubleMap：field_id → double（零装箱）
+      - BitSet：field_id → boolean（零装箱）
+      - Int2ObjectMap：复杂类型存储
+    * 实现字段名→ID映射
+    * 实现 FastBsonDocumentBuilder
+    * 实现 FastBsonDocumentFactory
+    * 预期性能：**3x** vs 当前装箱
+  - **子任务D**：Parser集成（1天）
+    * 修改DocumentParser使用Builder模式
+    * 修改ArrayParser使用Builder模式
+    * TypeHandler支持工厂配置
+    * 提供自动检测机制（fastutil可用性）
+  - **子任务E**：测试和文档（1天）
+    * 更新所有单元测试
+    * 性能对比测试
+    * API文档
+    * 迁移指南
+  - **预期性能**：
+    * Simple实现：**3.5-4.5x** vs MongoDB
+    * Fast实现：**5-6x** vs MongoDB
+  - 预计时间：7天
+
+- [ ] **Phase 2.14**: BsonValue对象池优化（1-2天）
+  - 实现小整数缓存增强
+  - ThreadLocal对象池（可选，风险评估）
+  - 预期提升：额外 +5-10%
+
+- [ ] **Phase 2.15**: 字段名Interning优化（1天）
+  - 实现字段名缓存（弱引用LRU）
+  - 修改BsonReader.readCString()使用intern
+  - 优化字符串比较（==代替equals）
+  - 预期提升：+5-10%
+
+- [ ] **Phase 2.16**: HashMap初始容量优化（0.5天）
+  - 启发式容量估算（docLength/20）
+  - DocumentParser容量优化
+  - 预期提升：+2-5%
+
+- [ ] **Phase 2.17**: 综合对象池优化（2-3天）
+  - ThreadLocal池化：BsonReader, HashMap, ArrayList
+  - 对象外泄防护
+  - 预期提升：+10-15%
+
+- [ ] **Phase 2.18**: 性能测试和Benchmark报告（1天）
+  - 全面性能测试
+  - 内存占用分析
+  - GC行为分析
+  - 生成详细报告
+
+- [ ] **Phase 2.19**: API文档和迁移指南（1天）
+  - API_REFERENCE.md
+  - MIGRATION_GUIDE.md
+  - PERFORMANCE_TUNING.md
+
+**Phase 2.13-2.19 设计文档**：
+- 详细设计：`PHASE2_HYBRID_DESIGN.md`
+- 激进路线：`PHASE2_AGGRESSIVE_ROADMAP.md`
+- 性能分析：`PERFORMANCE_ANALYSIS.md`
+
+---
+
+## Phase 3: 高级特性（待规划）
 
 **目标：** 提升解析性能
 

@@ -1,27 +1,36 @@
 package com.cloud.fastbson.handler.parsers;
 
+import com.cloud.fastbson.document.BsonArray;
+import com.cloud.fastbson.document.BsonDocument;
+import com.cloud.fastbson.document.BsonDocumentBuilder;
+import com.cloud.fastbson.document.BsonDocumentFactory;
 import com.cloud.fastbson.handler.BsonTypeParser;
 import com.cloud.fastbson.handler.TypeHandler;
 import com.cloud.fastbson.reader.BsonReader;
 import com.cloud.fastbson.util.BsonType;
-
-import java.util.HashMap;
-import java.util.Map;
+import com.cloud.fastbson.util.BsonUtils;
 
 /**
  * Parser for BSON Document type (0x03).
  *
- * <p>Parses embedded BSON documents recursively by delegating to TypeHandler.
+ * <p>Parses embedded BSON documents recursively using BsonDocumentBuilder for zero-boxing.
  *
  * <p>Document structure: int32 length + elements + 0x00 terminator
  * Each element: type byte + cstring field name + value
  *
  * <p>Uses enum singleton pattern for optimal performance and thread safety.
+ *
+ * <p>Performance optimization:
+ * <ul>
+ *   <li>Primitive types (int32, int64, double, boolean) are stored without boxing</li>
+ *   <li>Uses BsonDocumentFactory to create appropriate implementation (Fast or Simple)</li>
+ * </ul>
  */
 public enum DocumentParser implements BsonTypeParser {
     INSTANCE;
 
     private TypeHandler handler;
+    private BsonDocumentFactory factory;  // ✅ 工厂注入
 
     /**
      * Sets the TypeHandler for recursive parsing.
@@ -31,12 +40,25 @@ public enum DocumentParser implements BsonTypeParser {
         this.handler = handler;
     }
 
+    /**
+     * Sets the BsonDocumentFactory for creating documents.
+     * Called by TypeHandler during initialization.
+     */
+    public void setFactory(BsonDocumentFactory factory) {
+        this.factory = factory;
+    }
+
     @Override
     public Object parse(BsonReader reader) {
         int docLength = reader.readInt32();
         int endPosition = reader.position() + docLength - 4;
 
-        Map<String, Object> document = new HashMap<String, Object>();
+        // 使用工厂创建Builder
+        BsonDocumentBuilder builder = factory.newDocumentBuilder();
+
+        // 估算容量（粗略估计：每个字段平均20字节）
+        int estimatedFields = Math.max(4, docLength / 20);
+        builder.estimateSize(estimatedFields);
 
         while (reader.position() < endPosition) {
             byte type = reader.readByte();
@@ -45,11 +67,76 @@ public enum DocumentParser implements BsonTypeParser {
             }
 
             String fieldName = reader.readCString();
-            // Delegate to TypeHandler for recursive parsing
-            Object value = handler.parseValue(reader, type);
-            document.put(fieldName, value);
+
+            // ✅ 根据类型使用不同的put方法（无装箱）
+            switch (type) {
+                case BsonType.INT32:
+                    int intValue = reader.readInt32();
+                    builder.putInt32(fieldName, intValue);  // ✅ 无装箱
+                    break;
+
+                case BsonType.INT64:
+                    long longValue = reader.readInt64();
+                    builder.putInt64(fieldName, longValue);  // ✅ 无装箱
+                    break;
+
+                case BsonType.DOUBLE:
+                    double doubleValue = reader.readDouble();
+                    builder.putDouble(fieldName, doubleValue);  // ✅ 无装箱
+                    break;
+
+                case BsonType.BOOLEAN:
+                    boolean boolValue = reader.readByte() != 0;
+                    builder.putBoolean(fieldName, boolValue);  // ✅ 无装箱
+                    break;
+
+                case BsonType.STRING:
+                case BsonType.JAVASCRIPT:
+                case BsonType.SYMBOL:
+                    String stringValue = reader.readString();
+                    builder.putString(fieldName, stringValue);
+                    break;
+
+                case BsonType.DOCUMENT:
+                    // 递归解析嵌套文档
+                    BsonDocument nestedDoc = (BsonDocument) parse(reader);
+                    builder.putDocument(fieldName, nestedDoc);
+                    break;
+
+                case BsonType.ARRAY:
+                    BsonArray array = (BsonArray) ArrayParser.INSTANCE.parse(reader);
+                    builder.putArray(fieldName, array);
+                    break;
+
+                case BsonType.OBJECT_ID:
+                    String objectId = BsonUtils.bytesToHex(reader.readBytes(12));
+                    builder.putObjectId(fieldName, objectId);
+                    break;
+
+                case BsonType.DATE_TIME:
+                    long timestamp = reader.readInt64();
+                    builder.putDateTime(fieldName, timestamp);
+                    break;
+
+                case BsonType.NULL:
+                    builder.putNull(fieldName);
+                    break;
+
+                case BsonType.BINARY:
+                    int binLength = reader.readInt32();
+                    byte subtype = reader.readByte();
+                    byte[] data = reader.readBytes(binLength);
+                    builder.putBinary(fieldName, subtype, data);
+                    break;
+
+                default:
+                    // 其他复杂类型通过TypeHandler处理
+                    Object value = handler.parseValue(reader, type);
+                    builder.putComplex(fieldName, type, value);
+                    break;
+            }
         }
 
-        return document;
+        return builder.build();
     }
 }

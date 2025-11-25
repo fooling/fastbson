@@ -150,15 +150,18 @@ public class TypeHandlerTest {
     @Test
     public void testParseValue_Array_NonSequentialIndices() {
         // Test array with non-sequential indices (e.g., "1", "2" without "0")
-        // This tests the else branch in parseArray when containsKey returns false
+        // New implementation ignores field names and adds elements sequentially
         byte[] data = createArrayWithNonSequentialIndices();
         BsonReader reader = new BsonReader(data);
 
         Object result = handler.parseValue(reader, BsonType.ARRAY);
 
         assertTrue(result instanceof List);
-        // Should break at first missing index and return empty list
-        assertTrue(((List<?>) result).isEmpty());
+        // New behavior: ignores index field names, adds all elements sequentially
+        List<?> list = (List<?>) result;
+        assertEquals(2, list.size());  // Both elements should be added
+        assertEquals(100, list.get(0));
+        assertEquals(200, list.get(1));
     }
 
     @Test
