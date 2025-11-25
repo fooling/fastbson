@@ -100,6 +100,12 @@ public final class SimpleBsonDocumentBuilder implements BsonDocumentBuilder {
         return this;
     }
 
+    @Override
+    public BsonDocumentBuilder putComplex(String fieldName, byte type, Object value) {
+        fields.put(fieldName, SimpleBsonValue.ofComplex(type, value));
+        return this;
+    }
+
     // ==================== 构建 ====================
 
     @Override

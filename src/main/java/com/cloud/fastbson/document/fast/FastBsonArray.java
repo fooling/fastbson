@@ -31,6 +31,7 @@ import java.util.List;
 public final class FastBsonArray implements BsonArray {
 
     private final ByteArrayList types;  // 记录每个元素的类型
+    private final IntArrayList localIndices;  // 记录每个全局索引在其类型列表中的局部索引
     private final IntArrayList intElements;
     private final LongArrayList longElements;
     private final DoubleArrayList doubleElements;
@@ -42,6 +43,7 @@ public final class FastBsonArray implements BsonArray {
     static final FastBsonArray EMPTY = new FastBsonArray(
         new ByteArrayList(),
         new IntArrayList(),
+        new IntArrayList(),
         new LongArrayList(),
         new DoubleArrayList(),
         new BitSet(),
@@ -52,6 +54,7 @@ public final class FastBsonArray implements BsonArray {
     // 包内可见构造函数
     FastBsonArray(
         ByteArrayList types,
+        IntArrayList localIndices,
         IntArrayList intElements,
         LongArrayList longElements,
         DoubleArrayList doubleElements,
@@ -60,6 +63,7 @@ public final class FastBsonArray implements BsonArray {
         ObjectArrayList<Object> complexElements
     ) {
         this.types = types;
+        this.localIndices = localIndices;
         this.intElements = intElements;
         this.longElements = longElements;
         this.doubleElements = doubleElements;
@@ -219,28 +223,30 @@ public final class FastBsonArray implements BsonArray {
         }
 
         byte type = types.getByte(index);
+        int localIndex = localIndices.getInt(index);  // ✅ 获取局部索引
+
         switch (type) {
             case BsonType.INT32:
-                return intElements.getInt(index);  // 自动装箱
+                return intElements.getInt(localIndex);  // 自动装箱，使用局部索引
             case BsonType.INT64:
-                return longElements.getLong(index);  // 自动装箱
+                return longElements.getLong(localIndex);  // 自动装箱，使用局部索引
             case BsonType.DOUBLE:
-                return doubleElements.getDouble(index);  // 自动装箱
+                return doubleElements.getDouble(localIndex);  // 自动装箱，使用局部索引
             case BsonType.BOOLEAN:
-                return booleanElements.get(index);  // 自动装箱
+                return booleanElements.get(index);  // BitSet使用全局索引
             case BsonType.STRING:
-                return stringElements.get(index);
+                return stringElements.get(localIndex);  // 使用局部索引
             case BsonType.DOCUMENT:
             case BsonType.ARRAY:
             case BsonType.OBJECT_ID:
             case BsonType.BINARY:
-                return complexElements.get(index);
+                return complexElements.get(localIndex);  // 使用局部索引
             case BsonType.DATE_TIME:
-                return longElements.getLong(index);
+                return longElements.getLong(localIndex);  // 使用局部索引
             case BsonType.NULL:
                 return null;
             default:
-                return complexElements.get(index);
+                return complexElements.get(localIndex);  // 使用局部索引
         }
     }
 
@@ -271,7 +277,15 @@ public final class FastBsonArray implements BsonArray {
     public List<Object> toLegacyList() {
         List<Object> result = new ArrayList<Object>(types.size());
         for (int i = 0; i < types.size(); i++) {
-            result.add(get(i));
+            Object value = get(i);
+            byte type = types.getByte(i);
+            // Recursively convert nested BsonDocument and BsonArray to legacy Map and List
+            if (type == BsonType.DOCUMENT && value instanceof BsonDocument) {
+                value = ((BsonDocument) value).toLegacyMap();
+            } else if (type == BsonType.ARRAY && value instanceof BsonArray) {
+                value = ((BsonArray) value).toLegacyList();
+            }
+            result.add(value);
         }
         return result;
     }

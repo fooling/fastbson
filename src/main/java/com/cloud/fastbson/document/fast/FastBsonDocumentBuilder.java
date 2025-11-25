@@ -3,6 +3,7 @@ package com.cloud.fastbson.document.fast;
 import com.cloud.fastbson.document.BsonArray;
 import com.cloud.fastbson.document.BsonDocument;
 import com.cloud.fastbson.document.BsonDocumentBuilder;
+import com.cloud.fastbson.types.BinaryData;
 import com.cloud.fastbson.util.BsonType;
 import it.unimi.dsi.fastutil.ints.*;
 import it.unimi.dsi.fastutil.objects.*;
@@ -148,8 +149,16 @@ public final class FastBsonDocumentBuilder implements BsonDocumentBuilder {
     public BsonDocumentBuilder putBinary(String fieldName, byte subtype, byte[] data) {
         int fieldId = getOrCreateFieldId(fieldName);
         fieldTypes.put(fieldId, BsonType.BINARY);
-        // TODO: Store binary with subtype
-        complexFields.put(fieldId, data);
+        // Store BinaryData object with subtype
+        complexFields.put(fieldId, new BinaryData(subtype, data));
+        return this;
+    }
+
+    @Override
+    public BsonDocumentBuilder putComplex(String fieldName, byte type, Object value) {
+        int fieldId = getOrCreateFieldId(fieldName);
+        fieldTypes.put(fieldId, type);
+        complexFields.put(fieldId, value);
         return this;
     }
 

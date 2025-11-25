@@ -128,6 +128,16 @@ public interface BsonDocumentBuilder {
      */
     BsonDocumentBuilder putBinary(String fieldName, byte subtype, byte[] data);
 
+    /**
+     * 添加复杂类型（Regex, DBPointer, Timestamp, Decimal128等）
+     *
+     * @param fieldName 字段名
+     * @param type BSON类型字节
+     * @param value 值对象
+     * @return this
+     */
+    BsonDocumentBuilder putComplex(String fieldName, byte type, Object value);
+
     // ==================== 构建 ====================
 
     /**

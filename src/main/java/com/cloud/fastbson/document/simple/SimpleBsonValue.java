@@ -2,6 +2,7 @@ package com.cloud.fastbson.document.simple;
 
 import com.cloud.fastbson.document.BsonArray;
 import com.cloud.fastbson.document.BsonDocument;
+import com.cloud.fastbson.types.BinaryData;
 import com.cloud.fastbson.util.BsonType;
 
 /**
@@ -161,6 +162,17 @@ final class SimpleBsonValue {
         return v;
     }
 
+    // ==================== 通用复杂类型 ====================
+
+    /**
+     * 创建通用复杂类型（Regex, DBPointer, Timestamp, Decimal128等）
+     */
+    static SimpleBsonValue ofComplex(byte type, Object value) {
+        SimpleBsonValue v = new SimpleBsonValue(type);
+        v.refValue = value;
+        return v;
+    }
+
     // ==================== 访问方法 ====================
 
     int asInt32() {
@@ -267,10 +279,22 @@ final class SimpleBsonValue {
             case BsonType.BOOLEAN:
                 return intValue != 0;  // 自动装箱 boolean → Boolean
             case BsonType.STRING:
-            case BsonType.DOCUMENT:
-            case BsonType.ARRAY:
             case BsonType.OBJECT_ID:
+                return refValue;
             case BsonType.BINARY:
+                // Return BinaryData object for legacy compatibility
+                return new BinaryData((byte) intValue, (byte[]) refValue);
+            case BsonType.DOCUMENT:
+                // Recursively convert BsonDocument to Map
+                if (refValue instanceof BsonDocument) {
+                    return ((BsonDocument) refValue).toLegacyMap();
+                }
+                return refValue;
+            case BsonType.ARRAY:
+                // Recursively convert BsonArray to List
+                if (refValue instanceof BsonArray) {
+                    return ((BsonArray) refValue).toLegacyList();
+                }
                 return refValue;
             case BsonType.DATE_TIME:
                 return longValue;  // 返回timestamp

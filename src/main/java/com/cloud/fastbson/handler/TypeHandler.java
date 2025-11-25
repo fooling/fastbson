@@ -1,5 +1,9 @@
 package com.cloud.fastbson.handler;
 
+import com.cloud.fastbson.document.BsonArray;
+import com.cloud.fastbson.document.BsonDocument;
+import com.cloud.fastbson.document.BsonDocumentFactory;
+import com.cloud.fastbson.document.fast.FastBsonDocumentFactory;
 import com.cloud.fastbson.exception.InvalidBsonTypeException;
 import com.cloud.fastbson.handler.parsers.ArrayParser;
 import com.cloud.fastbson.handler.parsers.BinaryParser;
@@ -47,6 +51,13 @@ public class TypeHandler {
      */
     private static final BsonTypeParser[] PARSERS = new BsonTypeParser[256];
 
+    /**
+     * Document factory for creating BsonDocument and BsonArray instances.
+     * Default is FastBsonDocumentFactory (fastutil-based, zero-boxing).
+     * Can be switched to SimpleBsonDocumentFactory (zero-dependency).
+     */
+    private static BsonDocumentFactory documentFactory = FastBsonDocumentFactory.INSTANCE;
+
     static {
         // Initialize lookup table with type-specific parsers
         initializeParsers();
@@ -85,9 +96,49 @@ public class TypeHandler {
         ArrayParser.INSTANCE.setHandler(INSTANCE);
         JavaScriptWithScopeParser.INSTANCE.setHandler(INSTANCE);
 
+        // Phase 2.13: Inject factory for zero-boxing architecture
+        DocumentParser.INSTANCE.setFactory(documentFactory);
+        ArrayParser.INSTANCE.setFactory(documentFactory);
+
         PARSERS[BsonType.DOCUMENT & 0xFF] = DocumentParser.INSTANCE;
         PARSERS[BsonType.ARRAY & 0xFF] = ArrayParser.INSTANCE;
         PARSERS[BsonType.JAVASCRIPT_WITH_SCOPE & 0xFF] = JavaScriptWithScopeParser.INSTANCE;
+    }
+
+    /**
+     * Sets the document factory for creating BsonDocument and BsonArray instances.
+     *
+     * <p>This allows switching between implementations:
+     * <ul>
+     *   <li>FastBsonDocumentFactory (default): fastutil-based, zero-boxing, requires dependency</li>
+     *   <li>SimpleBsonDocumentFactory: zero-dependency, union type storage</li>
+     * </ul>
+     *
+     * <p>Example usage:
+     * <pre>{@code
+     * // Switch to Simple implementation (no external dependencies)
+     * TypeHandler.setDocumentFactory(SimpleBsonDocumentFactory.INSTANCE);
+     *
+     * // Switch back to Fast implementation (maximum performance)
+     * TypeHandler.setDocumentFactory(FastBsonDocumentFactory.INSTANCE);
+     * }</pre>
+     *
+     * @param factory the BsonDocumentFactory to use for creating documents/arrays
+     */
+    public static void setDocumentFactory(BsonDocumentFactory factory) {
+        documentFactory = factory;
+        // Re-inject factory into parsers
+        DocumentParser.INSTANCE.setFactory(documentFactory);
+        ArrayParser.INSTANCE.setFactory(documentFactory);
+    }
+
+    /**
+     * Gets the current document factory.
+     *
+     * @return the current BsonDocumentFactory
+     */
+    public static BsonDocumentFactory getDocumentFactory() {
+        return documentFactory;
     }
 
     /**
@@ -95,15 +146,27 @@ public class TypeHandler {
      *
      * <p>Uses lookup table for O(1) dispatch instead of switch-case.
      *
+     * <p>For backward compatibility, this method returns legacy types (Map/List)
+     * for documents and arrays. Use parsers directly for zero-boxing performance.
+     *
      * @param reader the BsonReader positioned at the value
      * @param type the BSON type byte
-     * @return the parsed value
+     * @return the parsed value (Map for documents, List for arrays, primitives for others)
      * @throws InvalidBsonTypeException if the type is unsupported
+     * @deprecated Use BsonDocument/BsonArray types directly for better performance
      */
+    @Deprecated
     public Object parseValue(BsonReader reader, byte type) {
         BsonTypeParser parser = PARSERS[type & 0xFF];
         if (parser != null) {
-            return parser.parse(reader);
+            Object result = parser.parse(reader);
+            // Convert to legacy types for backward compatibility
+            if (result instanceof BsonDocument) {
+                return ((BsonDocument) result).toLegacyMap();
+            } else if (result instanceof BsonArray) {
+                return ((BsonArray) result).toLegacyList();
+            }
+            return result;
         }
         throw new InvalidBsonTypeException(type);
     }
@@ -114,8 +177,14 @@ public class TypeHandler {
      *
      * <p>This method is retained for backward compatibility and external use.
      * Internal parsing uses DocumentParser.
+     *
+     * @deprecated Use BsonDocument interface instead of Map for better performance (zero-boxing)
      */
+    @Deprecated
     public Map<String, Object> parseDocument(BsonReader reader) {
-        return (Map<String, Object>) DocumentParser.INSTANCE.parse(reader);
+        // Parse to BsonDocument first (zero-boxing)
+        BsonDocument doc = (BsonDocument) DocumentParser.INSTANCE.parse(reader);
+        // Convert to legacy Map for backward compatibility (boxing required)
+        return doc.toLegacyMap();
     }
 }
