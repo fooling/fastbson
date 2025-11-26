@@ -272,24 +272,6 @@ public final class FastBsonArray implements BsonArray {
         };
     }
 
-    @Override
-    @Deprecated
-    public List<Object> toLegacyList() {
-        List<Object> result = new ArrayList<Object>(types.size());
-        for (int i = 0; i < types.size(); i++) {
-            Object value = get(i);
-            byte type = types.getByte(i);
-            // Recursively convert nested BsonDocument and BsonArray to legacy Map and List
-            if (type == BsonType.DOCUMENT && value instanceof BsonDocument) {
-                value = ((BsonDocument) value).toLegacyMap();
-            } else if (type == BsonType.ARRAY && value instanceof BsonArray) {
-                value = ((BsonArray) value).toLegacyList();
-            }
-            result.add(value);
-        }
-        return result;
-    }
-
     // ==================== 调试 ====================
 
     @Override

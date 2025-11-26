@@ -1,6 +1,6 @@
 package com.cloud.fastbson.types;
 
-import java.util.Map;
+import com.cloud.fastbson.document.BsonDocument;
 
 /**
  * Represents BSON JavaScript code with scope.
@@ -9,9 +9,9 @@ import java.util.Map;
  */
 public class JavaScriptWithScope {
     public final String code;
-    public final Map<String, Object> scope;
+    public final BsonDocument scope;
 
-    public JavaScriptWithScope(String code, Map<String, Object> scope) {
+    public JavaScriptWithScope(String code, BsonDocument scope) {
         this.code = code;
         this.scope = scope;
     }

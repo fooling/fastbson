@@ -239,16 +239,6 @@ public interface BsonDocument {
     @Deprecated
     Object get(String fieldName);
 
-    /**
-     * 转换为Legacy Map (兼容旧API)
-     *
-     * <p>注意：此方法会创建新的HashMap并装箱所有primitive值，性能开销较大
-     *
-     * @return Map表示的文档，所有primitive值被装箱
-     * @deprecated 使用BsonDocument接口方法
-     */
-    @Deprecated
-    Map<String, Object> toLegacyMap();
 
     // ==================== 调试和序列化 ====================
 
