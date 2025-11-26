@@ -308,27 +308,6 @@ public final class FastBsonDocument implements BsonDocument {
         }
     }
 
-    @Override
-    @Deprecated
-    public Map<String, Object> toLegacyMap() {
-        Map<String, Object> result = new HashMap<String, Object>(fieldNameToId.size());
-        for (Object2IntMap.Entry<String> entry : fieldNameToId.object2IntEntrySet()) {
-            String fieldName = entry.getKey();
-            int fieldId = entry.getIntValue();
-            byte type = fieldTypes.get(fieldId);
-
-            // Recursively convert nested BsonDocument and BsonArray to legacy Map and List
-            Object value = get(fieldName);
-            if (type == BsonType.DOCUMENT && value instanceof BsonDocument) {
-                value = ((BsonDocument) value).toLegacyMap();
-            } else if (type == BsonType.ARRAY && value instanceof BsonArray) {
-                value = ((BsonArray) value).toLegacyList();
-            }
-            result.put(fieldName, value);
-        }
-        return result;
-    }
-
     // ==================== 调试和序列化 ====================
 
     @Override

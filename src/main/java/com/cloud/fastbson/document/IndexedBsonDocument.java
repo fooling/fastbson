@@ -848,15 +848,4 @@ public class IndexedBsonDocument implements BsonDocument {
 
     // ===== Legacy compatibility methods =====
 
-    @Override
-    public java.util.Map<String, Object> toLegacyMap() {
-        java.util.Map<String, Object> map = new java.util.LinkedHashMap<>();
-        for (int i = 0; i < fields.length; i++) {
-            FieldIndex field = fields[i];
-            String name = new String(data, field.nameOffset, field.nameLength, java.nio.charset.StandardCharsets.UTF_8);
-            Object value = get(name);  // Reuse existing get() logic
-            map.put(name, value);
-        }
-        return map;
-    }
 }

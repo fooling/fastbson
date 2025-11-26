@@ -187,16 +187,6 @@ public interface BsonArray extends Iterable<Object> {
     @Override
     Iterator<Object> iterator();
 
-    /**
-     * 转换为Legacy List
-     *
-     * <p>注意：此方法会创建新的ArrayList并装箱所有primitive值
-     *
-     * @return List表示的数组，所有primitive值被装箱
-     * @deprecated 使用BsonArray接口
-     */
-    @Deprecated
-    List<Object> toLegacyList();
 
     /**
      * 转换为JSON字符串 (用于调试)

@@ -162,7 +162,7 @@ public enum ArrayParser implements BsonTypeParser {
 
                 default:
                     // 其他复杂类型通过TypeHandler处理
-                    Object value = handler.parseValue(reader, type);
+                    Object value = handler.getParsedValue(reader, type);
                     // TODO: 需要根据类型添加到builder
                     // 暂时跳过不支持的类型
                     break;

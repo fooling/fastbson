@@ -444,14 +444,6 @@ public class IndexedBsonArray implements BsonArray {
         return value;
     }
 
-    @Override
-    public List<Object> toLegacyList() {
-        List<Object> list = new ArrayList<>(elements.length);
-        for (int i = 0; i < elements.length; i++) {
-            list.add(get(i));
-        }
-        return list;
-    }
 
     @Override
     public String toJson() {

@@ -57,6 +57,19 @@ public class BsonReader {
     }
 
     /**
+     * Returns the underlying buffer for zero-copy operations.
+     *
+     * <p><b>Phase 2 Zero-Copy Support</b>
+     * <p>Exposes the raw byte buffer to enable zero-copy parsing strategies
+     * like IndexedBsonDocument which builds a field index without copying data.
+     *
+     * @return the underlying byte buffer
+     */
+    public byte[] getBuffer() {
+        return buffer;
+    }
+
+    /**
      * Sets the reading position.
      *
      * @param position the new position

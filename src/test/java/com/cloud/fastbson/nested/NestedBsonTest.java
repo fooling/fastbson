@@ -1,6 +1,9 @@
 package com.cloud.fastbson.nested;
 
+import com.cloud.fastbson.document.BsonArray;
+import com.cloud.fastbson.document.BsonDocument;
 import com.cloud.fastbson.handler.TypeHandler;
+import com.cloud.fastbson.handler.parsers.DocumentParser;
 import com.cloud.fastbson.reader.BsonReader;
 import com.cloud.fastbson.types.JavaScriptWithScope;
 import org.bson.*;
@@ -30,7 +33,7 @@ public class NestedBsonTest {
     /**
      * 序列化 BsonDocument 为字节数组
      */
-    private byte[] serialize(BsonDocument doc) {
+    private byte[] serialize(org.bson.BsonDocument doc) {
         BasicOutputBuffer buffer = new BasicOutputBuffer();
         BsonBinaryWriter writer = new BsonBinaryWriter(buffer);
         new BsonDocumentCodec().encode(writer, doc, EncoderContext.builder().build());
@@ -42,24 +45,23 @@ public class NestedBsonTest {
     @Test
     public void test2LayerNesting() {
         // 构造 2 层嵌套文档
-        BsonDocument innerDoc = new BsonDocument()
+        org.bson.BsonDocument innerDoc = new org.bson.BsonDocument()
             .append("innerField", new BsonString("inner value"))
             .append("innerNumber", new BsonInt32(42));
 
-        BsonDocument outerDoc = new BsonDocument()
+        org.bson.BsonDocument outerDoc = new org.bson.BsonDocument()
             .append("outerField", new BsonString("outer value"))
             .append("nested", innerDoc);
 
         byte[] bsonData = serialize(outerDoc);
         BsonReader reader = new BsonReader(bsonData);
-        Map<String, Object> result = handler.parseDocument(reader);
+        com.cloud.fastbson.document.BsonDocument result = (com.cloud.fastbson.document.BsonDocument) DocumentParser.INSTANCE.parse(reader);
 
         // 验证外层字段
         assertEquals("outer value", result.get("outerField"));
 
         // 验证嵌套文档
-        @SuppressWarnings("unchecked")
-        Map<String, Object> nested = (Map<String, Object>) result.get("nested");
+        com.cloud.fastbson.document.BsonDocument nested = (com.cloud.fastbson.document.BsonDocument) result.get("nested");
         assertNotNull(nested);
         assertEquals("inner value", nested.get("innerField"));
         assertEquals(42, nested.get("innerNumber"));
@@ -68,48 +70,44 @@ public class NestedBsonTest {
     @Test
     public void test5LayerNesting() {
         // 构造 5 层嵌套文档
-        BsonDocument level5 = new BsonDocument()
+        org.bson.BsonDocument level5 = new org.bson.BsonDocument()
             .append("level", new BsonInt32(5))
             .append("data", new BsonString("deepest level"));
 
-        BsonDocument level4 = new BsonDocument()
+        org.bson.BsonDocument level4 = new org.bson.BsonDocument()
             .append("level", new BsonInt32(4))
             .append("child", level5);
 
-        BsonDocument level3 = new BsonDocument()
+        org.bson.BsonDocument level3 = new org.bson.BsonDocument()
             .append("level", new BsonInt32(3))
             .append("child", level4);
 
-        BsonDocument level2 = new BsonDocument()
+        org.bson.BsonDocument level2 = new org.bson.BsonDocument()
             .append("level", new BsonInt32(2))
             .append("child", level3);
 
-        BsonDocument level1 = new BsonDocument()
+        org.bson.BsonDocument level1 = new org.bson.BsonDocument()
             .append("level", new BsonInt32(1))
             .append("child", level2);
 
         byte[] bsonData = serialize(level1);
         BsonReader reader = new BsonReader(bsonData);
-        Map<String, Object> result = handler.parseDocument(reader);
+        com.cloud.fastbson.document.BsonDocument result = (com.cloud.fastbson.document.BsonDocument) DocumentParser.INSTANCE.parse(reader);
 
         // 验证层级
         assertEquals(1, result.get("level"));
 
         // 逐层验证
-        @SuppressWarnings("unchecked")
-        Map<String, Object> l2 = (Map<String, Object>) result.get("child");
+        com.cloud.fastbson.document.BsonDocument l2 = (com.cloud.fastbson.document.BsonDocument) result.get("child");
         assertEquals(2, l2.get("level"));
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> l3 = (Map<String, Object>) l2.get("child");
+        com.cloud.fastbson.document.BsonDocument l3 = (com.cloud.fastbson.document.BsonDocument) l2.get("child");
         assertEquals(3, l3.get("level"));
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> l4 = (Map<String, Object>) l3.get("child");
+        com.cloud.fastbson.document.BsonDocument l4 = (com.cloud.fastbson.document.BsonDocument) l3.get("child");
         assertEquals(4, l4.get("level"));
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> l5 = (Map<String, Object>) l4.get("child");
+        com.cloud.fastbson.document.BsonDocument l5 = (com.cloud.fastbson.document.BsonDocument) l4.get("child");
         assertEquals(5, l5.get("level"));
         assertEquals("deepest level", l5.get("data"));
     }
@@ -117,12 +115,12 @@ public class NestedBsonTest {
     @Test
     public void test10LayerNesting() {
         // 构造 10 层嵌套文档（极限递归深度）
-        BsonDocument doc = new BsonDocument()
+        org.bson.BsonDocument doc = new org.bson.BsonDocument()
             .append("level", new BsonInt32(10))
             .append("data", new BsonString("level 10"));
 
         for (int i = 9; i >= 1; i--) {
-            BsonDocument parent = new BsonDocument()
+            org.bson.BsonDocument parent = new org.bson.BsonDocument()
                 .append("level", new BsonInt32(i))
                 .append("child", doc);
             doc = parent;
@@ -130,18 +128,17 @@ public class NestedBsonTest {
 
         byte[] bsonData = serialize(doc);
         BsonReader reader = new BsonReader(bsonData);
-        Map<String, Object> result = handler.parseDocument(reader);
+        com.cloud.fastbson.document.BsonDocument result = (com.cloud.fastbson.document.BsonDocument) DocumentParser.INSTANCE.parse(reader);
 
         // 验证最外层
         assertEquals(1, result.get("level"));
 
         // 遍历到最深层
-        @SuppressWarnings("unchecked")
-        Map<String, Object> current = (Map<String, Object>) result.get("child");
+        com.cloud.fastbson.document.BsonDocument current = (com.cloud.fastbson.document.BsonDocument) result.get("child");
         for (int i = 2; i <= 9; i++) {
             assertNotNull(current);
             assertEquals(i, current.get("level"));
-            current = (Map<String, Object>) current.get("child");
+            current = (com.cloud.fastbson.document.BsonDocument) current.get("child");
         }
 
         // 验证最深层
@@ -155,36 +152,33 @@ public class NestedBsonTest {
     @Test
     public void testArrayOfDocuments() {
         // 数组中嵌套文档
-        BsonArray array = new BsonArray();
-        array.add(new BsonDocument()
+        org.bson.BsonArray array = new org.bson.BsonArray();
+        array.add(new org.bson.BsonDocument()
             .append("name", new BsonString("Alice"))
             .append("age", new BsonInt32(30)));
-        array.add(new BsonDocument()
+        array.add(new org.bson.BsonDocument()
             .append("name", new BsonString("Bob"))
             .append("age", new BsonInt32(25)));
-        array.add(new BsonDocument()
+        array.add(new org.bson.BsonDocument()
             .append("name", new BsonString("Charlie"))
             .append("age", new BsonInt32(35)));
 
-        BsonDocument doc = new BsonDocument()
+        org.bson.BsonDocument doc = new org.bson.BsonDocument()
             .append("users", array);
 
         byte[] bsonData = serialize(doc);
         BsonReader reader = new BsonReader(bsonData);
-        Map<String, Object> result = handler.parseDocument(reader);
+        com.cloud.fastbson.document.BsonDocument result = (com.cloud.fastbson.document.BsonDocument) DocumentParser.INSTANCE.parse(reader);
 
-        @SuppressWarnings("unchecked")
-        List<Object> users = (List<Object>) result.get("users");
+        com.cloud.fastbson.document.BsonArray users = (com.cloud.fastbson.document.BsonArray) result.get("users");
         assertNotNull(users);
         assertEquals(3, users.size());
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> user1 = (Map<String, Object>) users.get(0);
+        com.cloud.fastbson.document.BsonDocument user1 = (com.cloud.fastbson.document.BsonDocument) users.get(0);
         assertEquals("Alice", user1.get("name"));
         assertEquals(30, user1.get("age"));
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> user2 = (Map<String, Object>) users.get(1);
+        com.cloud.fastbson.document.BsonDocument user2 = (com.cloud.fastbson.document.BsonDocument) users.get(1);
         assertEquals("Bob", user2.get("name"));
         assertEquals(25, user2.get("age"));
     }
@@ -192,41 +186,38 @@ public class NestedBsonTest {
     @Test
     public void testArrayOfArrays() {
         // 数组中嵌套数组
-        BsonArray innerArray1 = new BsonArray();
+        org.bson.BsonArray innerArray1 = new org.bson.BsonArray();
         innerArray1.add(new BsonInt32(1));
         innerArray1.add(new BsonInt32(2));
         innerArray1.add(new BsonInt32(3));
 
-        BsonArray innerArray2 = new BsonArray();
+        org.bson.BsonArray innerArray2 = new org.bson.BsonArray();
         innerArray2.add(new BsonString("a"));
         innerArray2.add(new BsonString("b"));
         innerArray2.add(new BsonString("c"));
 
-        BsonArray outerArray = new BsonArray();
+        org.bson.BsonArray outerArray = new org.bson.BsonArray();
         outerArray.add(innerArray1);
         outerArray.add(innerArray2);
 
-        BsonDocument doc = new BsonDocument()
+        org.bson.BsonDocument doc = new org.bson.BsonDocument()
             .append("matrix", outerArray);
 
         byte[] bsonData = serialize(doc);
         BsonReader reader = new BsonReader(bsonData);
-        Map<String, Object> result = handler.parseDocument(reader);
+        com.cloud.fastbson.document.BsonDocument result = (com.cloud.fastbson.document.BsonDocument) DocumentParser.INSTANCE.parse(reader);
 
-        @SuppressWarnings("unchecked")
-        List<Object> matrix = (List<Object>) result.get("matrix");
+        com.cloud.fastbson.document.BsonArray matrix = (com.cloud.fastbson.document.BsonArray) result.get("matrix");
         assertNotNull(matrix);
         assertEquals(2, matrix.size());
 
-        @SuppressWarnings("unchecked")
-        List<Object> row1 = (List<Object>) matrix.get(0);
+        com.cloud.fastbson.document.BsonArray row1 = (com.cloud.fastbson.document.BsonArray) matrix.get(0);
         assertEquals(3, row1.size());
         assertEquals(1, row1.get(0));
         assertEquals(2, row1.get(1));
         assertEquals(3, row1.get(2));
 
-        @SuppressWarnings("unchecked")
-        List<Object> row2 = (List<Object>) matrix.get(1);
+        com.cloud.fastbson.document.BsonArray row2 = (com.cloud.fastbson.document.BsonArray) matrix.get(1);
         assertEquals(3, row2.size());
         assertEquals("a", row2.get(0));
         assertEquals("b", row2.get(1));
@@ -236,39 +227,36 @@ public class NestedBsonTest {
     @Test
     public void testDocumentWithArrayOfDocumentsWithArrays() {
         // 复杂嵌套：文档 -> 数组 -> 文档 -> 数组
-        BsonArray tags1 = new BsonArray();
+        org.bson.BsonArray tags1 = new org.bson.BsonArray();
         tags1.add(new BsonString("java"));
         tags1.add(new BsonString("bson"));
 
-        BsonArray tags2 = new BsonArray();
+        org.bson.BsonArray tags2 = new org.bson.BsonArray();
         tags2.add(new BsonString("python"));
         tags2.add(new BsonString("json"));
 
-        BsonArray items = new BsonArray();
-        items.add(new BsonDocument()
+        org.bson.BsonArray items = new org.bson.BsonArray();
+        items.add(new org.bson.BsonDocument()
             .append("id", new BsonInt32(1))
             .append("tags", tags1));
-        items.add(new BsonDocument()
+        items.add(new org.bson.BsonDocument()
             .append("id", new BsonInt32(2))
             .append("tags", tags2));
 
-        BsonDocument doc = new BsonDocument()
+        org.bson.BsonDocument doc = new org.bson.BsonDocument()
             .append("items", items);
 
         byte[] bsonData = serialize(doc);
         BsonReader reader = new BsonReader(bsonData);
-        Map<String, Object> result = handler.parseDocument(reader);
+        com.cloud.fastbson.document.BsonDocument result = (com.cloud.fastbson.document.BsonDocument) DocumentParser.INSTANCE.parse(reader);
 
-        @SuppressWarnings("unchecked")
-        List<Object> itemsList = (List<Object>) result.get("items");
+        com.cloud.fastbson.document.BsonArray itemsList = (com.cloud.fastbson.document.BsonArray) result.get("items");
         assertEquals(2, itemsList.size());
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> item1 = (Map<String, Object>) itemsList.get(0);
+        com.cloud.fastbson.document.BsonDocument item1 = (com.cloud.fastbson.document.BsonDocument) itemsList.get(0);
         assertEquals(1, item1.get("id"));
 
-        @SuppressWarnings("unchecked")
-        List<Object> item1Tags = (List<Object>) item1.get("tags");
+        com.cloud.fastbson.document.BsonArray item1Tags = (com.cloud.fastbson.document.BsonArray) item1.get("tags");
         assertEquals(2, item1Tags.size());
         assertEquals("java", item1Tags.get(0));
         assertEquals("bson", item1Tags.get(1));
@@ -279,32 +267,30 @@ public class NestedBsonTest {
     @Test
     public void testMultipleNestedFields() {
         // 同一文档中多个嵌套字段
-        BsonDocument address = new BsonDocument()
+        org.bson.BsonDocument address = new org.bson.BsonDocument()
             .append("street", new BsonString("123 Main St"))
             .append("city", new BsonString("San Francisco"));
 
-        BsonDocument company = new BsonDocument()
+        org.bson.BsonDocument company = new org.bson.BsonDocument()
             .append("name", new BsonString("Acme Corp"))
             .append("department", new BsonString("Engineering"));
 
-        BsonDocument doc = new BsonDocument()
+        org.bson.BsonDocument doc = new org.bson.BsonDocument()
             .append("name", new BsonString("John Doe"))
             .append("address", address)
             .append("company", company);
 
         byte[] bsonData = serialize(doc);
         BsonReader reader = new BsonReader(bsonData);
-        Map<String, Object> result = handler.parseDocument(reader);
+        com.cloud.fastbson.document.BsonDocument result = (com.cloud.fastbson.document.BsonDocument) DocumentParser.INSTANCE.parse(reader);
 
         assertEquals("John Doe", result.get("name"));
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> addr = (Map<String, Object>) result.get("address");
+        com.cloud.fastbson.document.BsonDocument addr = (com.cloud.fastbson.document.BsonDocument) result.get("address");
         assertEquals("123 Main St", addr.get("street"));
         assertEquals("San Francisco", addr.get("city"));
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> comp = (Map<String, Object>) result.get("company");
+        com.cloud.fastbson.document.BsonDocument comp = (com.cloud.fastbson.document.BsonDocument) result.get("company");
         assertEquals("Acme Corp", comp.get("name"));
         assertEquals("Engineering", comp.get("department"));
     }
@@ -312,24 +298,23 @@ public class NestedBsonTest {
     @Test
     public void testNestedDocumentWithAllTypes() {
         // 嵌套文档中包含多种 BSON 类型
-        BsonDocument nested = new BsonDocument()
+        org.bson.BsonDocument nested = new org.bson.BsonDocument()
             .append("stringField", new BsonString("test"))
             .append("int32Field", new BsonInt32(42))
             .append("int64Field", new BsonInt64(9999999999L))
             .append("doubleField", new BsonDouble(3.14))
             .append("boolField", new BsonBoolean(true))
             .append("nullField", new BsonNull())
-            .append("arrayField", new BsonArray());
+            .append("arrayField", new org.bson.BsonArray());
 
-        BsonDocument doc = new BsonDocument()
+        org.bson.BsonDocument doc = new org.bson.BsonDocument()
             .append("nested", nested);
 
         byte[] bsonData = serialize(doc);
         BsonReader reader = new BsonReader(bsonData);
-        Map<String, Object> result = handler.parseDocument(reader);
+        com.cloud.fastbson.document.BsonDocument result = (com.cloud.fastbson.document.BsonDocument) DocumentParser.INSTANCE.parse(reader);
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> nestedResult = (Map<String, Object>) result.get("nested");
+        com.cloud.fastbson.document.BsonDocument nestedResult = (com.cloud.fastbson.document.BsonDocument) result.get("nested");
         assertNotNull(nestedResult);
         assertEquals("test", nestedResult.get("stringField"));
         assertEquals(42, nestedResult.get("int32Field"));
@@ -338,29 +323,28 @@ public class NestedBsonTest {
         assertEquals(true, nestedResult.get("boolField"));
         assertNull(nestedResult.get("nullField"));
 
-        @SuppressWarnings("unchecked")
-        List<Object> array = (List<Object>) nestedResult.get("arrayField");
+        com.cloud.fastbson.document.BsonArray array = (com.cloud.fastbson.document.BsonArray) nestedResult.get("arrayField");
         assertEquals(0, array.size());
     }
 
     @Test
     public void testJavaScriptWithScopeNesting() {
         // JavaScriptWithScope 中的嵌套 scope 文档
-        BsonDocument scope = new BsonDocument()
+        org.bson.BsonDocument scope = new org.bson.BsonDocument()
             .append("x", new BsonInt32(10))
-            .append("config", new BsonDocument()
+            .append("config", new org.bson.BsonDocument()
                 .append("timeout", new BsonInt32(5000))
                 .append("retry", new BsonBoolean(true)));
 
         BsonJavaScriptWithScope js = new BsonJavaScriptWithScope(
             "function() { return x * config.timeout; }", scope);
 
-        BsonDocument doc = new BsonDocument()
+        org.bson.BsonDocument doc = new org.bson.BsonDocument()
             .append("script", js);
 
         byte[] bsonData = serialize(doc);
         BsonReader reader = new BsonReader(bsonData);
-        Map<String, Object> result = handler.parseDocument(reader);
+        com.cloud.fastbson.document.BsonDocument result = (com.cloud.fastbson.document.BsonDocument) DocumentParser.INSTANCE.parse(reader);
 
         JavaScriptWithScope parsed =
             (JavaScriptWithScope) result.get("script");
@@ -368,8 +352,7 @@ public class NestedBsonTest {
         assertEquals("function() { return x * config.timeout; }", parsed.code);
         assertEquals(10, parsed.scope.get("x"));
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> config = (Map<String, Object>) parsed.scope.get("config");
+        com.cloud.fastbson.document.BsonDocument config = (com.cloud.fastbson.document.BsonDocument) parsed.scope.get("config");
         assertEquals(5000, config.get("timeout"));
         assertEquals(true, config.get("retry"));
     }
@@ -379,18 +362,17 @@ public class NestedBsonTest {
     @Test
     public void testEmptyNestedDocument() {
         // 空嵌套文档
-        BsonDocument doc = new BsonDocument()
+        org.bson.BsonDocument doc = new org.bson.BsonDocument()
             .append("outerField", new BsonString("outer"))
-            .append("emptyNested", new BsonDocument());
+            .append("emptyNested", new org.bson.BsonDocument());
 
         byte[] bsonData = serialize(doc);
         BsonReader reader = new BsonReader(bsonData);
-        Map<String, Object> result = handler.parseDocument(reader);
+        com.cloud.fastbson.document.BsonDocument result = (com.cloud.fastbson.document.BsonDocument) DocumentParser.INSTANCE.parse(reader);
 
         assertEquals("outer", result.get("outerField"));
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> empty = (Map<String, Object>) result.get("emptyNested");
+        com.cloud.fastbson.document.BsonDocument empty = (com.cloud.fastbson.document.BsonDocument) result.get("emptyNested");
         assertNotNull(empty);
         assertEquals(0, empty.size());
     }
@@ -398,18 +380,17 @@ public class NestedBsonTest {
     @Test
     public void testEmptyNestedArray() {
         // 空嵌套数组
-        BsonDocument doc = new BsonDocument()
+        org.bson.BsonDocument doc = new org.bson.BsonDocument()
             .append("field", new BsonString("value"))
-            .append("emptyArray", new BsonArray());
+            .append("emptyArray", new org.bson.BsonArray());
 
         byte[] bsonData = serialize(doc);
         BsonReader reader = new BsonReader(bsonData);
-        Map<String, Object> result = handler.parseDocument(reader);
+        com.cloud.fastbson.document.BsonDocument result = (com.cloud.fastbson.document.BsonDocument) DocumentParser.INSTANCE.parse(reader);
 
         assertEquals("value", result.get("field"));
 
-        @SuppressWarnings("unchecked")
-        List<Object> array = (List<Object>) result.get("emptyArray");
+        com.cloud.fastbson.document.BsonArray array = (com.cloud.fastbson.document.BsonArray) result.get("emptyArray");
         assertNotNull(array);
         assertEquals(0, array.size());
     }
@@ -417,20 +398,19 @@ public class NestedBsonTest {
     @Test
     public void testNestedNullValues() {
         // 嵌套文档中的 null 值
-        BsonDocument nested = new BsonDocument()
+        org.bson.BsonDocument nested = new org.bson.BsonDocument()
             .append("field1", new BsonString("value1"))
             .append("field2", new BsonNull())
             .append("field3", new BsonString("value3"));
 
-        BsonDocument doc = new BsonDocument()
+        org.bson.BsonDocument doc = new org.bson.BsonDocument()
             .append("nested", nested);
 
         byte[] bsonData = serialize(doc);
         BsonReader reader = new BsonReader(bsonData);
-        Map<String, Object> result = handler.parseDocument(reader);
+        com.cloud.fastbson.document.BsonDocument result = (com.cloud.fastbson.document.BsonDocument) DocumentParser.INSTANCE.parse(reader);
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> nestedResult = (Map<String, Object>) result.get("nested");
+        com.cloud.fastbson.document.BsonDocument nestedResult = (com.cloud.fastbson.document.BsonDocument) result.get("nested");
         assertNotNull(nestedResult);
         assertEquals("value1", nestedResult.get("field1"));
         assertNull(nestedResult.get("field2"));
@@ -440,20 +420,18 @@ public class NestedBsonTest {
     @Test
     public void testDeeplyNestedEmptyDocuments() {
         // 深层嵌套的空文档
-        BsonDocument level3 = new BsonDocument();
-        BsonDocument level2 = new BsonDocument().append("level3", level3);
-        BsonDocument level1 = new BsonDocument().append("level2", level2);
+        org.bson.BsonDocument level3 = new org.bson.BsonDocument();
+        org.bson.BsonDocument level2 = new org.bson.BsonDocument().append("level3", level3);
+        org.bson.BsonDocument level1 = new org.bson.BsonDocument().append("level2", level2);
 
         byte[] bsonData = serialize(level1);
         BsonReader reader = new BsonReader(bsonData);
-        Map<String, Object> result = handler.parseDocument(reader);
+        com.cloud.fastbson.document.BsonDocument result = (com.cloud.fastbson.document.BsonDocument) DocumentParser.INSTANCE.parse(reader);
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> l2 = (Map<String, Object>) result.get("level2");
+        com.cloud.fastbson.document.BsonDocument l2 = (com.cloud.fastbson.document.BsonDocument) result.get("level2");
         assertNotNull(l2);
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> l3 = (Map<String, Object>) l2.get("level3");
+        com.cloud.fastbson.document.BsonDocument l3 = (com.cloud.fastbson.document.BsonDocument) l2.get("level3");
         assertNotNull(l3);
         assertEquals(0, l3.size());
     }
@@ -466,23 +444,23 @@ public class NestedBsonTest {
         int iterations = 1000;
 
         // 2 层嵌套
-        BsonDocument doc2 = new BsonDocument()
-            .append("level1", new BsonDocument()
+        org.bson.BsonDocument doc2 = new org.bson.BsonDocument()
+            .append("level1", new org.bson.BsonDocument()
                 .append("data", new BsonString("value")));
         byte[] data2 = serialize(doc2);
 
         long start2 = System.nanoTime();
         for (int i = 0; i < iterations; i++) {
             BsonReader reader = new BsonReader(data2);
-            handler.parseDocument(reader);
+            DocumentParser.INSTANCE.parse(reader);
         }
         long time2 = System.nanoTime() - start2;
 
         // 5 层嵌套
-        BsonDocument doc5 = new BsonDocument();
-        BsonDocument current = doc5;
+        org.bson.BsonDocument doc5 = new org.bson.BsonDocument();
+        org.bson.BsonDocument current = doc5;
         for (int i = 0; i < 5; i++) {
-            BsonDocument child = new BsonDocument();
+            org.bson.BsonDocument child = new org.bson.BsonDocument();
             current.append("child", child);
             current = child;
         }
@@ -492,15 +470,15 @@ public class NestedBsonTest {
         long start5 = System.nanoTime();
         for (int i = 0; i < iterations; i++) {
             BsonReader reader = new BsonReader(data5);
-            handler.parseDocument(reader);
+            DocumentParser.INSTANCE.parse(reader);
         }
         long time5 = System.nanoTime() - start5;
 
         // 10 层嵌套
-        BsonDocument doc10 = new BsonDocument();
+        org.bson.BsonDocument doc10 = new org.bson.BsonDocument();
         current = doc10;
         for (int i = 0; i < 10; i++) {
-            BsonDocument child = new BsonDocument();
+            org.bson.BsonDocument child = new org.bson.BsonDocument();
             current.append("child", child);
             current = child;
         }
@@ -510,7 +488,7 @@ public class NestedBsonTest {
         long start10 = System.nanoTime();
         for (int i = 0; i < iterations; i++) {
             BsonReader reader = new BsonReader(data10);
-            handler.parseDocument(reader);
+            DocumentParser.INSTANCE.parse(reader);
         }
         long time10 = System.nanoTime() - start10;
 
@@ -527,11 +505,11 @@ public class NestedBsonTest {
     public void testNoStackOverflow() {
         // 确保深度递归不会导致栈溢出
         // 构造 50 层嵌套（非常深，但应该能处理）
-        BsonDocument doc = new BsonDocument()
+        org.bson.BsonDocument doc = new org.bson.BsonDocument()
             .append("data", new BsonString("deepest"));
 
         for (int i = 0; i < 50; i++) {
-            doc = new BsonDocument().append("child", doc);
+            doc = new org.bson.BsonDocument().append("child", doc);
         }
 
         byte[] bsonData = serialize(doc);
@@ -539,7 +517,7 @@ public class NestedBsonTest {
 
         // 应该能成功解析，不会抛出 StackOverflowError
         assertDoesNotThrow(() -> {
-            Map<String, Object> result = handler.parseDocument(reader);
+            com.cloud.fastbson.document.BsonDocument result = (com.cloud.fastbson.document.BsonDocument) DocumentParser.INSTANCE.parse(reader);
             assertNotNull(result);
         });
     }

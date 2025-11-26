@@ -53,8 +53,7 @@ public class TypeHandler {
 
     /**
      * Document factory for creating BsonDocument and BsonArray instances.
-     * Default is FastBsonDocumentFactory (fastutil-based, zero-boxing).
-     * Can be switched to SimpleBsonDocumentFactory (zero-dependency).
+     * Uses FastBsonDocumentFactory (fastutil-based, zero-boxing).
      */
     private static BsonDocumentFactory documentFactory = FastBsonDocumentFactory.INSTANCE;
 
@@ -108,20 +107,7 @@ public class TypeHandler {
     /**
      * Sets the document factory for creating BsonDocument and BsonArray instances.
      *
-     * <p>This allows switching between implementations:
-     * <ul>
-     *   <li>FastBsonDocumentFactory (default): fastutil-based, zero-boxing, requires dependency</li>
-     *   <li>SimpleBsonDocumentFactory: zero-dependency, union type storage</li>
-     * </ul>
-     *
-     * <p>Example usage:
-     * <pre>{@code
-     * // Switch to Simple implementation (no external dependencies)
-     * TypeHandler.setDocumentFactory(SimpleBsonDocumentFactory.INSTANCE);
-     *
-     * // Switch back to Fast implementation (maximum performance)
-     * TypeHandler.setDocumentFactory(FastBsonDocumentFactory.INSTANCE);
-     * }</pre>
+     * <p>Uses FastBsonDocumentFactory (fastutil-based, zero-boxing).
      *
      * @param factory the BsonDocumentFactory to use for creating documents/arrays
      */
@@ -142,49 +128,29 @@ public class TypeHandler {
     }
 
     /**
-     * Parses a BSON value based on its type byte.
+     * Parses a BSON value based on its type byte (high-performance API).
      *
      * <p>Uses lookup table for O(1) dispatch instead of switch-case.
      *
-     * <p>For backward compatibility, this method returns legacy types (Map/List)
-     * for documents and arrays. Use parsers directly for zero-boxing performance.
+     * <p>Returns native types without boxing conversion:
+     * <ul>
+     *   <li>Documents: BsonDocument (zero-copy)</li>
+     *   <li>Arrays: BsonArray (zero-copy)</li>
+     *   <li>Primitives: int, long, double, boolean (no boxing)</li>
+     *   <li>Strings: String</li>
+     * </ul>
      *
      * @param reader the BsonReader positioned at the value
      * @param type the BSON type byte
-     * @return the parsed value (Map for documents, List for arrays, primitives for others)
+     * @return the parsed value (native types, no legacy conversion)
      * @throws InvalidBsonTypeException if the type is unsupported
-     * @deprecated Use BsonDocument/BsonArray types directly for better performance
      */
-    @Deprecated
-    public Object parseValue(BsonReader reader, byte type) {
+    public Object getParsedValue(BsonReader reader, byte type) {
         BsonTypeParser parser = PARSERS[type & 0xFF];
         if (parser != null) {
-            Object result = parser.parse(reader);
-            // Convert to legacy types for backward compatibility
-            if (result instanceof BsonDocument) {
-                return ((BsonDocument) result).toLegacyMap();
-            } else if (result instanceof BsonArray) {
-                return ((BsonArray) result).toLegacyList();
-            }
-            return result;
+            return parser.parse(reader);
         }
         throw new InvalidBsonTypeException(type);
     }
 
-    /**
-     * Parses an embedded document.
-     * Public method for external use (e.g., PartialParser).
-     *
-     * <p>This method is retained for backward compatibility and external use.
-     * Internal parsing uses DocumentParser.
-     *
-     * @deprecated Use BsonDocument interface instead of Map for better performance (zero-boxing)
-     */
-    @Deprecated
-    public Map<String, Object> parseDocument(BsonReader reader) {
-        // Parse to BsonDocument first (zero-boxing)
-        BsonDocument doc = (BsonDocument) DocumentParser.INSTANCE.parse(reader);
-        // Convert to legacy Map for backward compatibility (boxing required)
-        return doc.toLegacyMap();
-    }
 }

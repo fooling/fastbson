@@ -1,4 +1,5 @@
 package com.cloud.fastbson.benchmark;
+import com.cloud.fastbson.handler.parsers.DocumentParser;
 
 import com.cloud.fastbson.handler.TypeHandler;
 import com.cloud.fastbson.reader.BsonReader;
@@ -35,7 +36,7 @@ public class ExtendedBenchmarkValidationTest {
         long fastbsonStart = System.nanoTime();
         for (int i = 0; i < 1000; i++) {
             BsonReader reader = new BsonReader(bsonData);
-            Map<String, Object> result = handler.parseDocument(reader);
+            com.cloud.fastbson.document.BsonDocument result = (com.cloud.fastbson.document.BsonDocument) DocumentParser.INSTANCE.parse(reader);
             assertEquals(50, result.size());
         }
         long fastbsonTime = System.nanoTime() - fastbsonStart;
@@ -69,7 +70,7 @@ public class ExtendedBenchmarkValidationTest {
         long fastbsonStart = System.nanoTime();
         for (int i = 0; i < 1000; i++) {
             BsonReader reader = new BsonReader(bsonData);
-            Map<String, Object> result = handler.parseDocument(reader);
+            com.cloud.fastbson.document.BsonDocument result = (com.cloud.fastbson.document.BsonDocument) DocumentParser.INSTANCE.parse(reader);
             assertEquals(50, result.size());
         }
         long fastbsonTime = System.nanoTime() - fastbsonStart;
@@ -103,7 +104,7 @@ public class ExtendedBenchmarkValidationTest {
         long fastbsonStart = System.nanoTime();
         for (int i = 0; i < 1000; i++) {
             BsonReader reader = new BsonReader(bsonData);
-            Map<String, Object> result = handler.parseDocument(reader);
+            com.cloud.fastbson.document.BsonDocument result = (com.cloud.fastbson.document.BsonDocument) DocumentParser.INSTANCE.parse(reader);
             assertEquals(50, result.size());
         }
         long fastbsonTime = System.nanoTime() - fastbsonStart;
@@ -137,7 +138,7 @@ public class ExtendedBenchmarkValidationTest {
         long fastbsonStart = System.nanoTime();
         for (int i = 0; i < 1000; i++) {
             BsonReader reader = new BsonReader(bsonData);
-            Map<String, Object> result = handler.parseDocument(reader);
+            com.cloud.fastbson.document.BsonDocument result = (com.cloud.fastbson.document.BsonDocument) DocumentParser.INSTANCE.parse(reader);
             assertEquals(20, result.size());
         }
         long fastbsonTime = System.nanoTime() - fastbsonStart;
@@ -172,7 +173,7 @@ public class ExtendedBenchmarkValidationTest {
         long fastbsonStart = System.nanoTime();
         for (int i = 0; i < 100; i++) {
             BsonReader reader = new BsonReader(bsonData);
-            Map<String, Object> result = handler.parseDocument(reader);
+            com.cloud.fastbson.document.BsonDocument result = (com.cloud.fastbson.document.BsonDocument) DocumentParser.INSTANCE.parse(reader);
             assertTrue(result.size() > 0);
         }
         long fastbsonTime = System.nanoTime() - fastbsonStart;
@@ -207,7 +208,7 @@ public class ExtendedBenchmarkValidationTest {
         long fastbsonStart = System.nanoTime();
         for (int i = 0; i < 10; i++) {
             BsonReader reader = new BsonReader(bsonData);
-            Map<String, Object> result = handler.parseDocument(reader);
+            com.cloud.fastbson.document.BsonDocument result = (com.cloud.fastbson.document.BsonDocument) DocumentParser.INSTANCE.parse(reader);
             assertTrue(result.size() > 0);
         }
         long fastbsonTime = System.nanoTime() - fastbsonStart;

@@ -1,4 +1,5 @@
 package com.cloud.fastbson.performance;
+import com.cloud.fastbson.handler.parsers.DocumentParser;
 
 import com.cloud.fastbson.handler.TypeHandler;
 import com.cloud.fastbson.parser.PartialParser;
@@ -199,7 +200,7 @@ public class EarlyExitPerformanceTest {
         for (int i = 0; i < 100; i++) {
             partialParser.parse(bsonData);
             BsonReader reader = new BsonReader(bsonData);
-            fullParser.parseDocument(reader);
+            DocumentParser.INSTANCE.parse(reader);
         }
 
         // Act - 部分解析（提前退出）
@@ -214,7 +215,7 @@ public class EarlyExitPerformanceTest {
         long startFull = System.nanoTime();
         for (int i = 0; i < ITERATIONS; i++) {
             BsonReader reader = new BsonReader(bsonData);
-            Map<String, Object> result = fullParser.parseDocument(reader);
+            com.cloud.fastbson.document.BsonDocument result = (com.cloud.fastbson.document.BsonDocument) DocumentParser.INSTANCE.parse(reader);
             assertEquals(FIELD_COUNT, result.size());
         }
         long timeFull = System.nanoTime() - startFull;

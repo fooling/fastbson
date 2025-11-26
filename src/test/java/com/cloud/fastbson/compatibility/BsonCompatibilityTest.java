@@ -1,5 +1,7 @@
 package com.cloud.fastbson.compatibility;
+import com.cloud.fastbson.handler.parsers.DocumentParser;
 
+import com.cloud.fastbson.document.BsonDocument;
 import com.cloud.fastbson.handler.TypeHandler;
 import com.cloud.fastbson.reader.BsonReader;
 import com.cloud.fastbson.types.BinaryData;
@@ -41,17 +43,17 @@ public class BsonCompatibilityTest {
     /**
      * 将 BsonDocument 序列化为 BSON 二进制
      */
-    private byte[] serializeBsonDocument(BsonDocument doc) {
+    private byte[] serializeBsonDocument(org.bson.BsonDocument doc) {
         BasicOutputBuffer buffer = new BasicOutputBuffer();
         BsonBinaryWriter writer = new BsonBinaryWriter(buffer);
-        new BsonDocumentCodec().encode(writer, doc, EncoderContext.builder().build());
+        new org.bson.codecs.BsonDocumentCodec().encode(writer, doc, EncoderContext.builder().build());
         return buffer.toByteArray();
     }
 
     @Test
     public void testBasicTypes() {
         // 构造测试文档（类似 mongo shell 格式）
-        BsonDocument doc = new BsonDocument()
+        org.bson.BsonDocument doc = new org.bson.BsonDocument()
             .append("stringField", new BsonString("Hello, FastBSON"))
             .append("int32Field", new BsonInt32(42))
             .append("int64Field", new BsonInt64(9223372036854775807L))
@@ -65,15 +67,15 @@ public class BsonCompatibilityTest {
 
         // 使用 FastBSON 解析
         BsonReader reader = new BsonReader(bsonData);
-        Map<String, Object> result = handler.parseDocument(reader);
+        BsonDocument result = (BsonDocument) DocumentParser.INSTANCE.parse(reader);
 
         // 验证结果
         assertEquals("Hello, FastBSON", result.get("stringField"));
-        assertEquals(42, result.get("int32Field"));
-        assertEquals(9223372036854775807L, result.get("int64Field"));
-        assertEquals(3.14159, (Double) result.get("doubleField"), 0.00001);
-        assertEquals(true, result.get("booleanTrue"));
-        assertEquals(false, result.get("booleanFalse"));
+        assertEquals(42, result.getInt32("int32Field"));
+        assertEquals(9223372036854775807L, result.getInt64("int64Field"));
+        assertEquals(3.14159, result.getDouble("doubleField"), 0.00001);
+        assertEquals(true, result.getBoolean("booleanTrue"));
+        assertEquals(false, result.getBoolean("booleanFalse"));
         assertNull(result.get("nullField"));
     }
 
@@ -82,19 +84,20 @@ public class BsonCompatibilityTest {
         Date now = new Date(1700000000000L); // 固定时间戳便于测试
         ObjectId objectId = new ObjectId("507f1f77bcf86cd799439011");
 
-        BsonDocument doc = new BsonDocument()
+        org.bson.BsonDocument doc = new org.bson.BsonDocument()
             .append("dateTime", new BsonDateTime(now.getTime()))
             .append("objectId", new BsonObjectId(objectId));
 
         byte[] bsonData = serializeBsonDocument(doc);
         BsonReader reader = new BsonReader(bsonData);
-        Map<String, Object> result = handler.parseDocument(reader);
+        BsonDocument result = (BsonDocument) DocumentParser.INSTANCE.parse(reader);
 
         // 验证 DateTime (FastBSON 返回 Long 以提高性能)
-        Long parsedTimestamp = (Long) result.get("dateTime");
+        Long parsedTimestamp = Long.valueOf(result.getDateTime("dateTime"));
         assertEquals(now.getTime(), parsedTimestamp.longValue());
 
         // 验证 ObjectId（FastBSON 返回 hex 字符串）
+        // getString() 可能不支持所有类型，直接用 get() 然后转换
         String parsedObjectId = (String) result.get("objectId");
         assertEquals(objectId.toHexString(), parsedObjectId);
     }
@@ -104,12 +107,12 @@ public class BsonCompatibilityTest {
         byte[] testData = new byte[]{0x01, 0x02, 0x03, 0x04, 0x05};
         BsonBinary binary = new BsonBinary((byte) 0x00, testData);
 
-        BsonDocument doc = new BsonDocument()
+        org.bson.BsonDocument doc = new org.bson.BsonDocument()
             .append("binaryField", binary);
 
         byte[] bsonData = serializeBsonDocument(doc);
         BsonReader reader = new BsonReader(bsonData);
-        Map<String, Object> result = handler.parseDocument(reader);
+        BsonDocument result = (BsonDocument) DocumentParser.INSTANCE.parse(reader);
 
         BinaryData parsedBinary = (BinaryData) result.get("binaryField");
         assertNotNull(parsedBinary);
@@ -121,12 +124,12 @@ public class BsonCompatibilityTest {
     public void testRegex() {
         BsonRegularExpression regex = new BsonRegularExpression("^test.*", "i");
 
-        BsonDocument doc = new BsonDocument()
+        org.bson.BsonDocument doc = new org.bson.BsonDocument()
             .append("regexField", regex);
 
         byte[] bsonData = serializeBsonDocument(doc);
         BsonReader reader = new BsonReader(bsonData);
-        Map<String, Object> result = handler.parseDocument(reader);
+        BsonDocument result = (BsonDocument) DocumentParser.INSTANCE.parse(reader);
 
         RegexValue parsedRegex = (RegexValue) result.get("regexField");
         assertNotNull(parsedRegex);
@@ -138,12 +141,12 @@ public class BsonCompatibilityTest {
     public void testTimestamp() {
         BsonTimestamp timestamp = new BsonTimestamp(1234567890, 42);
 
-        BsonDocument doc = new BsonDocument()
+        org.bson.BsonDocument doc = new org.bson.BsonDocument()
             .append("timestampField", timestamp);
 
         byte[] bsonData = serializeBsonDocument(doc);
         BsonReader reader = new BsonReader(bsonData);
-        Map<String, Object> result = handler.parseDocument(reader);
+        BsonDocument result = (BsonDocument) DocumentParser.INSTANCE.parse(reader);
 
         Timestamp parsedTimestamp = (Timestamp) result.get("timestampField");
         assertNotNull(parsedTimestamp);
@@ -155,12 +158,12 @@ public class BsonCompatibilityTest {
     public void testDecimal128() {
         org.bson.types.Decimal128 decimal = org.bson.types.Decimal128.parse("123.456");
 
-        BsonDocument doc = new BsonDocument()
+        org.bson.BsonDocument doc = new org.bson.BsonDocument()
             .append("decimalField", new BsonDecimal128(decimal));
 
         byte[] bsonData = serializeBsonDocument(doc);
         BsonReader reader = new BsonReader(bsonData);
-        Map<String, Object> result = handler.parseDocument(reader);
+        BsonDocument result = (BsonDocument) DocumentParser.INSTANCE.parse(reader);
 
         com.cloud.fastbson.types.Decimal128 parsedDecimal = (com.cloud.fastbson.types.Decimal128) result.get("decimalField");
         assertNotNull(parsedDecimal);
@@ -169,22 +172,21 @@ public class BsonCompatibilityTest {
 
     @Test
     public void testArray() {
-        BsonArray array = new BsonArray(Arrays.asList(
+        org.bson.BsonArray bsonArray = new org.bson.BsonArray(Arrays.asList(
             new BsonInt32(1),
             new BsonString("two"),
             new BsonDouble(3.0),
             new BsonBoolean(true)
         ));
 
-        BsonDocument doc = new BsonDocument()
-            .append("arrayField", array);
+        org.bson.BsonDocument doc = new org.bson.BsonDocument()
+            .append("arrayField", bsonArray);
 
         byte[] bsonData = serializeBsonDocument(doc);
         BsonReader reader = new BsonReader(bsonData);
-        Map<String, Object> result = handler.parseDocument(reader);
+        BsonDocument result = (BsonDocument) DocumentParser.INSTANCE.parse(reader);
 
-        @SuppressWarnings("unchecked")
-        List<Object> parsedArray = (List<Object>) result.get("arrayField");
+        com.cloud.fastbson.document.BsonArray parsedArray = result.getArray("arrayField");
         assertNotNull(parsedArray);
         assertEquals(4, parsedArray.size());
         assertEquals(1, parsedArray.get(0));
@@ -195,57 +197,56 @@ public class BsonCompatibilityTest {
 
     @Test
     public void testNestedDocument() {
-        BsonDocument nested = new BsonDocument()
+        org.bson.BsonDocument nested = new org.bson.BsonDocument()
             .append("innerField1", new BsonString("nested value"))
             .append("innerField2", new BsonInt32(99));
 
-        BsonDocument doc = new BsonDocument()
+        org.bson.BsonDocument doc = new org.bson.BsonDocument()
             .append("outerField", new BsonString("outer value"))
             .append("nestedDoc", nested);
 
         byte[] bsonData = serializeBsonDocument(doc);
         BsonReader reader = new BsonReader(bsonData);
-        Map<String, Object> result = handler.parseDocument(reader);
+        BsonDocument result = (BsonDocument) DocumentParser.INSTANCE.parse(reader);
 
-        assertEquals("outer value", result.get("outerField"));
+        assertEquals("outer value", result.getString("outerField"));
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> parsedNested = (Map<String, Object>) result.get("nestedDoc");
+        BsonDocument parsedNested = result.getDocument("nestedDoc");
         assertNotNull(parsedNested);
-        assertEquals("nested value", parsedNested.get("innerField1"));
-        assertEquals(99, parsedNested.get("innerField2"));
+        assertEquals("nested value", parsedNested.getString("innerField1"));
+        assertEquals(99, parsedNested.getInt32("innerField2"));
     }
 
     @Test
     public void testJavaScript() {
         BsonJavaScript js = new BsonJavaScript("function() { return 42; }");
 
-        BsonDocument doc = new BsonDocument()
+        org.bson.BsonDocument doc = new org.bson.BsonDocument()
             .append("jsField", js);
 
         byte[] bsonData = serializeBsonDocument(doc);
         BsonReader reader = new BsonReader(bsonData);
-        Map<String, Object> result = handler.parseDocument(reader);
+        BsonDocument result = (BsonDocument) DocumentParser.INSTANCE.parse(reader);
 
-        String parsedJs = (String) result.get("jsField");
+        String parsedJs = result.getString("jsField");
         assertEquals("function() { return 42; }", parsedJs);
     }
 
     @Test
     public void testJavaScriptWithScope() {
-        BsonDocument scope = new BsonDocument()
+        org.bson.BsonDocument scope = new org.bson.BsonDocument()
             .append("x", new BsonInt32(10))
             .append("y", new BsonString("test"));
 
         BsonJavaScriptWithScope jsWithScope = new BsonJavaScriptWithScope(
             "function() { return x + y; }", scope);
 
-        BsonDocument doc = new BsonDocument()
+        org.bson.BsonDocument doc = new org.bson.BsonDocument()
             .append("jsWithScopeField", jsWithScope);
 
         byte[] bsonData = serializeBsonDocument(doc);
         BsonReader reader = new BsonReader(bsonData);
-        Map<String, Object> result = handler.parseDocument(reader);
+        BsonDocument result = (BsonDocument) DocumentParser.INSTANCE.parse(reader);
 
         JavaScriptWithScope parsed =
             (JavaScriptWithScope) result.get("jsWithScopeField");
@@ -257,13 +258,13 @@ public class BsonCompatibilityTest {
 
     @Test
     public void testMinKeyAndMaxKey() {
-        BsonDocument doc = new BsonDocument()
+        org.bson.BsonDocument doc = new org.bson.BsonDocument()
             .append("minKey", new BsonMinKey())
             .append("maxKey", new BsonMaxKey());
 
         byte[] bsonData = serializeBsonDocument(doc);
         BsonReader reader = new BsonReader(bsonData);
-        Map<String, Object> result = handler.parseDocument(reader);
+        BsonDocument result = (BsonDocument) DocumentParser.INSTANCE.parse(reader);
 
         assertTrue(result.get("minKey") instanceof MinKey);
         assertTrue(result.get("maxKey") instanceof MaxKey);
@@ -273,14 +274,14 @@ public class BsonCompatibilityTest {
     public void testSymbol() {
         BsonSymbol symbol = new BsonSymbol("symbolValue");
 
-        BsonDocument doc = new BsonDocument()
+        org.bson.BsonDocument doc = new org.bson.BsonDocument()
             .append("symbolField", symbol);
 
         byte[] bsonData = serializeBsonDocument(doc);
         BsonReader reader = new BsonReader(bsonData);
-        Map<String, Object> result = handler.parseDocument(reader);
+        BsonDocument result = (BsonDocument) DocumentParser.INSTANCE.parse(reader);
 
-        String parsedSymbol = (String) result.get("symbolField");
+        String parsedSymbol = result.getString("symbolField");
         assertEquals("symbolValue", parsedSymbol);
     }
 
@@ -289,12 +290,12 @@ public class BsonCompatibilityTest {
         ObjectId oid = new ObjectId("507f1f77bcf86cd799439011");
         BsonDbPointer dbPointer = new BsonDbPointer("db.collection", oid);
 
-        BsonDocument doc = new BsonDocument()
+        org.bson.BsonDocument doc = new org.bson.BsonDocument()
             .append("dbPointerField", dbPointer);
 
         byte[] bsonData = serializeBsonDocument(doc);
         BsonReader reader = new BsonReader(bsonData);
-        Map<String, Object> result = handler.parseDocument(reader);
+        BsonDocument result = (BsonDocument) DocumentParser.INSTANCE.parse(reader);
 
         DBPointer parsed = (DBPointer) result.get("dbPointerField");
         assertNotNull(parsed);
@@ -305,7 +306,7 @@ public class BsonCompatibilityTest {
     @Test
     public void testComplexDocument() {
         // 构造一个包含多种类型的复杂文档
-        BsonDocument doc = new BsonDocument()
+        org.bson.BsonDocument doc = new org.bson.BsonDocument()
             .append("name", new BsonString("John Doe"))
             .append("age", new BsonInt32(30))
             .append("salary", new BsonDouble(50000.50))
@@ -316,7 +317,7 @@ public class BsonCompatibilityTest {
                 new BsonString("bson"),
                 new BsonString("mongodb")
             )))
-            .append("address", new BsonDocument()
+            .append("address", new org.bson.BsonDocument()
                 .append("street", new BsonString("123 Main St"))
                 .append("city", new BsonString("San Francisco"))
                 .append("zipCode", new BsonInt32(94101))
@@ -325,39 +326,37 @@ public class BsonCompatibilityTest {
 
         byte[] bsonData = serializeBsonDocument(doc);
         BsonReader reader = new BsonReader(bsonData);
-        Map<String, Object> result = handler.parseDocument(reader);
+        BsonDocument result = (BsonDocument) DocumentParser.INSTANCE.parse(reader);
 
         // 验证基本字段
         assertEquals("John Doe", result.get("name"));
         assertEquals(30, result.get("age"));
-        assertEquals(50000.50, (Double) result.get("salary"), 0.01);
+        assertEquals(50000.50, result.getDouble("salary"), 0.01);
         assertEquals(true, result.get("isActive"));
         assertNotNull(result.get("joinDate"));
         assertNull(result.get("metadata"));
 
         // 验证数组
-        @SuppressWarnings("unchecked")
-        List<Object> tags = (List<Object>) result.get("tags");
+        com.cloud.fastbson.document.BsonArray tags = result.getArray("tags");
         assertEquals(3, tags.size());
-        assertEquals("java", tags.get(0));
-        assertEquals("bson", tags.get(1));
-        assertEquals("mongodb", tags.get(2));
+        assertEquals("java", tags.getString(0));
+        assertEquals("bson", tags.getString(1));
+        assertEquals("mongodb", tags.getString(2));
 
         // 验证嵌套文档
-        @SuppressWarnings("unchecked")
-        Map<String, Object> address = (Map<String, Object>) result.get("address");
-        assertEquals("123 Main St", address.get("street"));
-        assertEquals("San Francisco", address.get("city"));
-        assertEquals(94101, address.get("zipCode"));
+        BsonDocument address = result.getDocument("address");
+        assertEquals("123 Main St", address.getString("street"));
+        assertEquals("San Francisco", address.getString("city"));
+        assertEquals(94101, address.getInt32("zipCode"));
     }
 
     @Test
     public void testEmptyDocument() {
-        BsonDocument doc = new BsonDocument();
+        org.bson.BsonDocument doc = new org.bson.BsonDocument();
 
         byte[] bsonData = serializeBsonDocument(doc);
         BsonReader reader = new BsonReader(bsonData);
-        Map<String, Object> result = handler.parseDocument(reader);
+        BsonDocument result = (BsonDocument) DocumentParser.INSTANCE.parse(reader);
 
         assertNotNull(result);
         assertEquals(0, result.size());
@@ -365,22 +364,21 @@ public class BsonCompatibilityTest {
 
     @Test
     public void testEmptyArray() {
-        BsonDocument doc = new BsonDocument()
+        org.bson.BsonDocument doc = new org.bson.BsonDocument()
             .append("emptyArray", new BsonArray());
 
         byte[] bsonData = serializeBsonDocument(doc);
         BsonReader reader = new BsonReader(bsonData);
-        Map<String, Object> result = handler.parseDocument(reader);
+        BsonDocument result = (BsonDocument) DocumentParser.INSTANCE.parse(reader);
 
-        @SuppressWarnings("unchecked")
-        List<Object> array = (List<Object>) result.get("emptyArray");
+        com.cloud.fastbson.document.BsonArray array = result.getArray("emptyArray");
         assertNotNull(array);
         assertEquals(0, array.size());
     }
 
     @Test
     public void testUnicodeStrings() {
-        BsonDocument doc = new BsonDocument()
+        org.bson.BsonDocument doc = new org.bson.BsonDocument()
             .append("chinese", new BsonString("你好，世界"))
             .append("japanese", new BsonString("こんにちは"))
             .append("emoji", new BsonString("🚀💻🎉"))
@@ -388,7 +386,7 @@ public class BsonCompatibilityTest {
 
         byte[] bsonData = serializeBsonDocument(doc);
         BsonReader reader = new BsonReader(bsonData);
-        Map<String, Object> result = handler.parseDocument(reader);
+        BsonDocument result = (BsonDocument) DocumentParser.INSTANCE.parse(reader);
 
         assertEquals("你好，世界", result.get("chinese"));
         assertEquals("こんにちは", result.get("japanese"));

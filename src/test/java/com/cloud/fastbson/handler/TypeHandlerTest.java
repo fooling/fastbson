@@ -1,5 +1,8 @@
 package com.cloud.fastbson.handler;
+import com.cloud.fastbson.handler.parsers.DocumentParser;
 
+import com.cloud.fastbson.document.BsonDocument;
+import com.cloud.fastbson.document.BsonArray;
 import com.cloud.fastbson.exception.InvalidBsonTypeException;
 import com.cloud.fastbson.reader.BsonReader;
 import com.cloud.fastbson.types.BinaryData;
@@ -39,7 +42,7 @@ public class TypeHandlerTest {
         byte[] data = createDoubleData(3.14159);
         BsonReader reader = new BsonReader(data);
 
-        Object result = handler.parseValue(reader, BsonType.DOUBLE);
+        Object result = handler.getParsedValue(reader, BsonType.DOUBLE);
 
         assertTrue(result instanceof Double);
         assertEquals(3.14159, (Double) result, 0.00001);
@@ -52,7 +55,7 @@ public class TypeHandlerTest {
         byte[] data = createStringData("Hello BSON");
         BsonReader reader = new BsonReader(data);
 
-        Object result = handler.parseValue(reader, BsonType.STRING);
+        Object result = handler.getParsedValue(reader, BsonType.STRING);
 
         assertTrue(result instanceof String);
         assertEquals("Hello BSON", result);
@@ -63,7 +66,7 @@ public class TypeHandlerTest {
         byte[] data = createStringData("");
         BsonReader reader = new BsonReader(data);
 
-        Object result = handler.parseValue(reader, BsonType.STRING);
+        Object result = handler.getParsedValue(reader, BsonType.STRING);
 
         assertEquals("", result);
     }
@@ -75,10 +78,10 @@ public class TypeHandlerTest {
         byte[] data = createSimpleDocument();
         BsonReader reader = new BsonReader(data);
 
-        Object result = handler.parseValue(reader, BsonType.DOCUMENT);
+        Object result = handler.getParsedValue(reader, BsonType.DOCUMENT);
 
-        assertTrue(result instanceof Map);
-        Map<String, Object> doc = (Map<String, Object>) result;
+        assertTrue(result instanceof BsonDocument);
+        BsonDocument doc = (BsonDocument) result;
         assertEquals("John", doc.get("name"));
         assertEquals(25, doc.get("age"));
     }
@@ -88,7 +91,7 @@ public class TypeHandlerTest {
         byte[] data = createEmptyDocument();
         BsonReader reader = new BsonReader(data);
 
-        Map<String, Object> result = handler.parseDocument(reader);
+        BsonDocument result = (BsonDocument) DocumentParser.INSTANCE.parse(reader);
 
         assertNotNull(result);
         assertTrue(result.isEmpty());
@@ -99,10 +102,10 @@ public class TypeHandlerTest {
         byte[] data = createNestedDocument();
         BsonReader reader = new BsonReader(data);
 
-        Map<String, Object> result = handler.parseDocument(reader);
+        BsonDocument result = (BsonDocument) DocumentParser.INSTANCE.parse(reader);
 
-        assertTrue(result.containsKey("nested"));
-        assertTrue(result.get("nested") instanceof Map);
+        assertTrue(result.contains("nested"));
+        assertTrue(result.get("nested") instanceof BsonDocument);
     }
 
     @Test
@@ -112,7 +115,7 @@ public class TypeHandlerTest {
         byte[] data = createDocumentWithoutTerminator();
         BsonReader reader = new BsonReader(data);
 
-        Map<String, Object> result = handler.parseDocument(reader);
+        BsonDocument result = (BsonDocument) DocumentParser.INSTANCE.parse(reader);
 
         assertNotNull(result);
         assertEquals(1, result.size());
@@ -126,10 +129,10 @@ public class TypeHandlerTest {
         byte[] data = createArrayData();
         BsonReader reader = new BsonReader(data);
 
-        Object result = handler.parseValue(reader, BsonType.ARRAY);
+        Object result = handler.getParsedValue(reader, BsonType.ARRAY);
 
-        assertTrue(result instanceof List);
-        List<Object> array = (List<Object>) result;
+        assertTrue(result instanceof BsonArray);
+        BsonArray array = (BsonArray) result;
         assertEquals(3, array.size());
         assertEquals(10, array.get(0));
         assertEquals(20, array.get(1));
@@ -141,10 +144,10 @@ public class TypeHandlerTest {
         byte[] data = createEmptyArray();
         BsonReader reader = new BsonReader(data);
 
-        Object result = handler.parseValue(reader, BsonType.ARRAY);
+        Object result = handler.getParsedValue(reader, BsonType.ARRAY);
 
-        assertTrue(result instanceof List);
-        assertTrue(((List<?>) result).isEmpty());
+        assertTrue(result instanceof BsonArray);
+        assertTrue(((BsonArray) result).isEmpty());
     }
 
     @Test
@@ -154,14 +157,14 @@ public class TypeHandlerTest {
         byte[] data = createArrayWithNonSequentialIndices();
         BsonReader reader = new BsonReader(data);
 
-        Object result = handler.parseValue(reader, BsonType.ARRAY);
+        Object result = handler.getParsedValue(reader, BsonType.ARRAY);
 
-        assertTrue(result instanceof List);
+        assertTrue(result instanceof BsonArray);
         // New behavior: ignores index field names, adds all elements sequentially
-        List<?> list = (List<?>) result;
-        assertEquals(2, list.size());  // Both elements should be added
-        assertEquals(100, list.get(0));
-        assertEquals(200, list.get(1));
+        BsonArray array = (BsonArray) result;
+        assertEquals(2, array.size());  // Both elements should be added
+        assertEquals(100, array.get(0));
+        assertEquals(200, array.get(1));
     }
 
     @Test
@@ -170,10 +173,10 @@ public class TypeHandlerTest {
         byte[] data = createSingleElementArray();
         BsonReader reader = new BsonReader(data);
 
-        Object result = handler.parseValue(reader, BsonType.ARRAY);
+        Object result = handler.getParsedValue(reader, BsonType.ARRAY);
 
-        assertTrue(result instanceof List);
-        List<Object> array = (List<Object>) result;
+        assertTrue(result instanceof BsonArray);
+        BsonArray array = (BsonArray) result;
         assertEquals(1, array.size());
         assertEquals(42, array.get(0));
     }
@@ -186,7 +189,7 @@ public class TypeHandlerTest {
         byte[] data = createBinaryData((byte) 0x00, binaryContent);
         BsonReader reader = new BsonReader(data);
 
-        Object result = handler.parseValue(reader, BsonType.BINARY);
+        Object result = handler.getParsedValue(reader, BsonType.BINARY);
 
         assertTrue(result instanceof BinaryData);
         BinaryData binary = (BinaryData) result;
@@ -201,7 +204,7 @@ public class TypeHandlerTest {
         byte[] data = new byte[0];
         BsonReader reader = new BsonReader(data);
 
-        Object result = handler.parseValue(reader, BsonType.UNDEFINED);
+        Object result = handler.getParsedValue(reader, BsonType.UNDEFINED);
 
         assertNull(result);
     }
@@ -216,7 +219,7 @@ public class TypeHandlerTest {
         };
         BsonReader reader = new BsonReader(objectIdBytes);
 
-        Object result = handler.parseValue(reader, BsonType.OBJECT_ID);
+        Object result = handler.getParsedValue(reader, BsonType.OBJECT_ID);
 
         assertTrue(result instanceof String);
         assertEquals("0102030405060708090a0b0c", result);
@@ -229,7 +232,7 @@ public class TypeHandlerTest {
         byte[] data = new byte[]{0x01};
         BsonReader reader = new BsonReader(data);
 
-        Object result = handler.parseValue(reader, BsonType.BOOLEAN);
+        Object result = handler.getParsedValue(reader, BsonType.BOOLEAN);
 
         assertTrue(result instanceof Boolean);
         assertTrue((Boolean) result);
@@ -240,7 +243,7 @@ public class TypeHandlerTest {
         byte[] data = new byte[]{0x00};
         BsonReader reader = new BsonReader(data);
 
-        Object result = handler.parseValue(reader, BsonType.BOOLEAN);
+        Object result = handler.getParsedValue(reader, BsonType.BOOLEAN);
 
         assertTrue(result instanceof Boolean);
         assertFalse((Boolean) result);
@@ -254,7 +257,7 @@ public class TypeHandlerTest {
         byte[] data = createInt64Data(timestamp);
         BsonReader reader = new BsonReader(data);
 
-        Object result = handler.parseValue(reader, BsonType.DATE_TIME);
+        Object result = handler.getParsedValue(reader, BsonType.DATE_TIME);
 
         // DateTime now returns Long for optimal performance
         assertTrue(result instanceof Long);
@@ -268,7 +271,7 @@ public class TypeHandlerTest {
         byte[] data = new byte[0];
         BsonReader reader = new BsonReader(data);
 
-        Object result = handler.parseValue(reader, BsonType.NULL);
+        Object result = handler.getParsedValue(reader, BsonType.NULL);
 
         assertNull(result);
     }
@@ -280,7 +283,7 @@ public class TypeHandlerTest {
         byte[] data = createRegexData("^[a-z]+$", "i");
         BsonReader reader = new BsonReader(data);
 
-        Object result = handler.parseValue(reader, BsonType.REGEX);
+        Object result = handler.getParsedValue(reader, BsonType.REGEX);
 
         assertTrue(result instanceof RegexValue);
         RegexValue regex = (RegexValue) result;
@@ -299,7 +302,7 @@ public class TypeHandlerTest {
         byte[] data = createDBPointerData("db.collection", objectIdBytes);
         BsonReader reader = new BsonReader(data);
 
-        Object result = handler.parseValue(reader, BsonType.DB_POINTER);
+        Object result = handler.getParsedValue(reader, BsonType.DB_POINTER);
 
         assertTrue(result instanceof DBPointer);
         DBPointer dbPointer = (DBPointer) result;
@@ -314,7 +317,7 @@ public class TypeHandlerTest {
         byte[] data = createStringData("function() { return 42; }");
         BsonReader reader = new BsonReader(data);
 
-        Object result = handler.parseValue(reader, BsonType.JAVASCRIPT);
+        Object result = handler.getParsedValue(reader, BsonType.JAVASCRIPT);
 
         assertTrue(result instanceof String);
         assertEquals("function() { return 42; }", result);
@@ -327,7 +330,7 @@ public class TypeHandlerTest {
         byte[] data = createStringData("mySymbol");
         BsonReader reader = new BsonReader(data);
 
-        Object result = handler.parseValue(reader, BsonType.SYMBOL);
+        Object result = handler.getParsedValue(reader, BsonType.SYMBOL);
 
         assertTrue(result instanceof String);
         assertEquals("mySymbol", result);
@@ -340,7 +343,7 @@ public class TypeHandlerTest {
         byte[] data = createJavaScriptWithScopeData("function() { return x; }");
         BsonReader reader = new BsonReader(data);
 
-        Object result = handler.parseValue(reader, BsonType.JAVASCRIPT_WITH_SCOPE);
+        Object result = handler.getParsedValue(reader, BsonType.JAVASCRIPT_WITH_SCOPE);
 
         assertTrue(result instanceof JavaScriptWithScope);
         JavaScriptWithScope js = (JavaScriptWithScope) result;
@@ -355,7 +358,7 @@ public class TypeHandlerTest {
         byte[] data = createInt32Data(12345);
         BsonReader reader = new BsonReader(data);
 
-        Object result = handler.parseValue(reader, BsonType.INT32);
+        Object result = handler.getParsedValue(reader, BsonType.INT32);
 
         assertTrue(result instanceof Integer);
         assertEquals(12345, result);
@@ -366,7 +369,7 @@ public class TypeHandlerTest {
         byte[] data = createInt32Data(-12345);
         BsonReader reader = new BsonReader(data);
 
-        Object result = handler.parseValue(reader, BsonType.INT32);
+        Object result = handler.getParsedValue(reader, BsonType.INT32);
 
         assertEquals(-12345, result);
     }
@@ -378,7 +381,7 @@ public class TypeHandlerTest {
         byte[] data = createTimestampData(1000, 5);
         BsonReader reader = new BsonReader(data);
 
-        Object result = handler.parseValue(reader, BsonType.TIMESTAMP);
+        Object result = handler.getParsedValue(reader, BsonType.TIMESTAMP);
 
         assertTrue(result instanceof Timestamp);
         Timestamp timestamp = (Timestamp) result;
@@ -393,7 +396,7 @@ public class TypeHandlerTest {
         byte[] data = createInt64Data(9876543210L);
         BsonReader reader = new BsonReader(data);
 
-        Object result = handler.parseValue(reader, BsonType.INT64);
+        Object result = handler.getParsedValue(reader, BsonType.INT64);
 
         assertTrue(result instanceof Long);
         assertEquals(9876543210L, result);
@@ -404,7 +407,7 @@ public class TypeHandlerTest {
         byte[] data = createInt64Data(-9876543210L);
         BsonReader reader = new BsonReader(data);
 
-        Object result = handler.parseValue(reader, BsonType.INT64);
+        Object result = handler.getParsedValue(reader, BsonType.INT64);
 
         assertEquals(-9876543210L, result);
     }
@@ -419,7 +422,7 @@ public class TypeHandlerTest {
         }
         BsonReader reader = new BsonReader(decimal128Bytes);
 
-        Object result = handler.parseValue(reader, BsonType.DECIMAL128);
+        Object result = handler.getParsedValue(reader, BsonType.DECIMAL128);
 
         assertTrue(result instanceof Decimal128);
         assertArrayEquals(decimal128Bytes, ((Decimal128) result).bytes);
@@ -432,7 +435,7 @@ public class TypeHandlerTest {
         byte[] data = new byte[0];
         BsonReader reader = new BsonReader(data);
 
-        Object result = handler.parseValue(reader, BsonType.MIN_KEY);
+        Object result = handler.getParsedValue(reader, BsonType.MIN_KEY);
 
         assertTrue(result instanceof MinKey);
         assertEquals("MinKey", result.toString());
@@ -445,7 +448,7 @@ public class TypeHandlerTest {
         byte[] data = new byte[0];
         BsonReader reader = new BsonReader(data);
 
-        Object result = handler.parseValue(reader, BsonType.MAX_KEY);
+        Object result = handler.getParsedValue(reader, BsonType.MAX_KEY);
 
         assertTrue(result instanceof MaxKey);
         assertEquals("MaxKey", result.toString());
@@ -461,7 +464,7 @@ public class TypeHandlerTest {
         final byte invalidType = (byte) 0x20;
 
         assertThrows(InvalidBsonTypeException.class, () -> {
-            handler.parseValue(reader, invalidType);
+            handler.getParsedValue(reader, invalidType);
         });
     }
 
@@ -493,11 +496,11 @@ public class TypeHandlerTest {
 
         BsonReader reader = new BsonReader(buffer.array());
 
-        Object result = handler.parseValue(reader, BsonType.ARRAY);
+        Object result = handler.getParsedValue(reader, BsonType.ARRAY);
 
         // Should return empty array even with this edge case
-        assertTrue(result instanceof List);
-        assertTrue(((List<?>) result).isEmpty());
+        assertTrue(result instanceof BsonArray);
+        assertTrue(((BsonArray) result).isEmpty());
     }
 
     // ==================== Helper Methods ====================

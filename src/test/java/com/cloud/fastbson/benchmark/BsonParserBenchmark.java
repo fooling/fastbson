@@ -1,4 +1,5 @@
 package com.cloud.fastbson.benchmark;
+import com.cloud.fastbson.handler.parsers.DocumentParser;
 
 import com.cloud.fastbson.handler.TypeHandler;
 import com.cloud.fastbson.reader.BsonReader;
@@ -151,18 +152,18 @@ public class BsonParserBenchmark {
     // ==================== 小文档测试 ====================
 
     @Benchmark
-    public Map<String, Object> fastbson_small(SmallDocumentState state) {
+    public com.cloud.fastbson.document.BsonDocument fastbson_small(SmallDocumentState state) {
         BsonReader reader = new BsonReader(state.bsonData);
         TypeHandler handler = new TypeHandler();
-        return handler.parseDocument(reader);
+        return (com.cloud.fastbson.document.BsonDocument) DocumentParser.INSTANCE.parse(reader);
     }
 
     @Benchmark
-    public BsonDocument mongodb_small(SmallDocumentState state) {
+    public org.bson.BsonDocument mongodb_small(SmallDocumentState state) {
         BsonBinaryReader reader = new BsonBinaryReader(new ByteBufferBsonInput(
             new org.bson.ByteBufNIO(ByteBuffer.wrap(state.bsonData))));
         BsonDocumentCodec codec = new BsonDocumentCodec();
-        BsonDocument result = codec.decode(reader, DecoderContext.builder().build());
+        org.bson.BsonDocument result = codec.decode(reader, DecoderContext.builder().build());
         reader.close();
         return result;
     }
@@ -170,18 +171,18 @@ public class BsonParserBenchmark {
     // ==================== 中等文档测试 ====================
 
     @Benchmark
-    public Map<String, Object> fastbson_medium(MediumDocumentState state) {
+    public com.cloud.fastbson.document.BsonDocument fastbson_medium(MediumDocumentState state) {
         BsonReader reader = new BsonReader(state.bsonData);
         TypeHandler handler = new TypeHandler();
-        return handler.parseDocument(reader);
+        return (com.cloud.fastbson.document.BsonDocument) DocumentParser.INSTANCE.parse(reader);
     }
 
     @Benchmark
-    public BsonDocument mongodb_medium(MediumDocumentState state) {
+    public org.bson.BsonDocument mongodb_medium(MediumDocumentState state) {
         BsonBinaryReader reader = new BsonBinaryReader(new ByteBufferBsonInput(
             new org.bson.ByteBufNIO(ByteBuffer.wrap(state.bsonData))));
         BsonDocumentCodec codec = new BsonDocumentCodec();
-        BsonDocument result = codec.decode(reader, DecoderContext.builder().build());
+        org.bson.BsonDocument result = codec.decode(reader, DecoderContext.builder().build());
         reader.close();
         return result;
     }
@@ -189,18 +190,18 @@ public class BsonParserBenchmark {
     // ==================== 大文档测试 ====================
 
     @Benchmark
-    public Map<String, Object> fastbson_large(LargeDocumentState state) {
+    public com.cloud.fastbson.document.BsonDocument fastbson_large(LargeDocumentState state) {
         BsonReader reader = new BsonReader(state.bsonData);
         TypeHandler handler = new TypeHandler();
-        return handler.parseDocument(reader);
+        return (com.cloud.fastbson.document.BsonDocument) DocumentParser.INSTANCE.parse(reader);
     }
 
     @Benchmark
-    public BsonDocument mongodb_large(LargeDocumentState state) {
+    public org.bson.BsonDocument mongodb_large(LargeDocumentState state) {
         BsonBinaryReader reader = new BsonBinaryReader(new ByteBufferBsonInput(
             new org.bson.ByteBufNIO(ByteBuffer.wrap(state.bsonData))));
         BsonDocumentCodec codec = new BsonDocumentCodec();
-        BsonDocument result = codec.decode(reader, DecoderContext.builder().build());
+        org.bson.BsonDocument result = codec.decode(reader, DecoderContext.builder().build());
         reader.close();
         return result;
     }
@@ -208,18 +209,18 @@ public class BsonParserBenchmark {
     // ==================== String 密集型测试 ====================
 
     @Benchmark
-    public Map<String, Object> fastbson_stringHeavy(StringHeavyDocumentState state) {
+    public com.cloud.fastbson.document.BsonDocument fastbson_stringHeavy(StringHeavyDocumentState state) {
         BsonReader reader = new BsonReader(state.bsonData);
         TypeHandler handler = new TypeHandler();
-        return handler.parseDocument(reader);
+        return (com.cloud.fastbson.document.BsonDocument) DocumentParser.INSTANCE.parse(reader);
     }
 
     @Benchmark
-    public BsonDocument mongodb_stringHeavy(StringHeavyDocumentState state) {
+    public org.bson.BsonDocument mongodb_stringHeavy(StringHeavyDocumentState state) {
         BsonBinaryReader reader = new BsonBinaryReader(new ByteBufferBsonInput(
             new org.bson.ByteBufNIO(ByteBuffer.wrap(state.bsonData))));
         BsonDocumentCodec codec = new BsonDocumentCodec();
-        BsonDocument result = codec.decode(reader, DecoderContext.builder().build());
+        org.bson.BsonDocument result = codec.decode(reader, DecoderContext.builder().build());
         reader.close();
         return result;
     }
@@ -227,18 +228,18 @@ public class BsonParserBenchmark {
     // ==================== 纯 String 测试 ====================
 
     @Benchmark
-    public Map<String, Object> fastbson_pureString(PureStringDocumentState state) {
+    public com.cloud.fastbson.document.BsonDocument fastbson_pureString(PureStringDocumentState state) {
         BsonReader reader = new BsonReader(state.bsonData);
         TypeHandler handler = new TypeHandler();
-        return handler.parseDocument(reader);
+        return (com.cloud.fastbson.document.BsonDocument) DocumentParser.INSTANCE.parse(reader);
     }
 
     @Benchmark
-    public BsonDocument mongodb_pureString(PureStringDocumentState state) {
+    public org.bson.BsonDocument mongodb_pureString(PureStringDocumentState state) {
         BsonBinaryReader reader = new BsonBinaryReader(new ByteBufferBsonInput(
             new org.bson.ByteBufNIO(ByteBuffer.wrap(state.bsonData))));
         BsonDocumentCodec codec = new BsonDocumentCodec();
-        BsonDocument result = codec.decode(reader, DecoderContext.builder().build());
+        org.bson.BsonDocument result = codec.decode(reader, DecoderContext.builder().build());
         reader.close();
         return result;
     }
@@ -246,18 +247,18 @@ public class BsonParserBenchmark {
     // ==================== 数值密集型测试 ====================
 
     @Benchmark
-    public Map<String, Object> fastbson_numericHeavy(NumericHeavyDocumentState state) {
+    public com.cloud.fastbson.document.BsonDocument fastbson_numericHeavy(NumericHeavyDocumentState state) {
         BsonReader reader = new BsonReader(state.bsonData);
         TypeHandler handler = new TypeHandler();
-        return handler.parseDocument(reader);
+        return (com.cloud.fastbson.document.BsonDocument) DocumentParser.INSTANCE.parse(reader);
     }
 
     @Benchmark
-    public BsonDocument mongodb_numericHeavy(NumericHeavyDocumentState state) {
+    public org.bson.BsonDocument mongodb_numericHeavy(NumericHeavyDocumentState state) {
         BsonBinaryReader reader = new BsonBinaryReader(new ByteBufferBsonInput(
             new org.bson.ByteBufNIO(ByteBuffer.wrap(state.bsonData))));
         BsonDocumentCodec codec = new BsonDocumentCodec();
-        BsonDocument result = codec.decode(reader, DecoderContext.builder().build());
+        org.bson.BsonDocument result = codec.decode(reader, DecoderContext.builder().build());
         reader.close();
         return result;
     }
@@ -265,18 +266,18 @@ public class BsonParserBenchmark {
     // ==================== 数组密集型测试 ====================
 
     @Benchmark
-    public Map<String, Object> fastbson_arrayHeavy(ArrayHeavyDocumentState state) {
+    public com.cloud.fastbson.document.BsonDocument fastbson_arrayHeavy(ArrayHeavyDocumentState state) {
         BsonReader reader = new BsonReader(state.bsonData);
         TypeHandler handler = new TypeHandler();
-        return handler.parseDocument(reader);
+        return (com.cloud.fastbson.document.BsonDocument) DocumentParser.INSTANCE.parse(reader);
     }
 
     @Benchmark
-    public BsonDocument mongodb_arrayHeavy(ArrayHeavyDocumentState state) {
+    public org.bson.BsonDocument mongodb_arrayHeavy(ArrayHeavyDocumentState state) {
         BsonBinaryReader reader = new BsonBinaryReader(new ByteBufferBsonInput(
             new org.bson.ByteBufNIO(ByteBuffer.wrap(state.bsonData))));
         BsonDocumentCodec codec = new BsonDocumentCodec();
-        BsonDocument result = codec.decode(reader, DecoderContext.builder().build());
+        org.bson.BsonDocument result = codec.decode(reader, DecoderContext.builder().build());
         reader.close();
         return result;
     }
@@ -284,18 +285,18 @@ public class BsonParserBenchmark {
     // ==================== 100KB 文档测试 ====================
 
     @Benchmark
-    public Map<String, Object> fastbson_100KB(Document100KBState state) {
+    public com.cloud.fastbson.document.BsonDocument fastbson_100KB(Document100KBState state) {
         BsonReader reader = new BsonReader(state.bsonData);
         TypeHandler handler = new TypeHandler();
-        return handler.parseDocument(reader);
+        return (com.cloud.fastbson.document.BsonDocument) DocumentParser.INSTANCE.parse(reader);
     }
 
     @Benchmark
-    public BsonDocument mongodb_100KB(Document100KBState state) {
+    public org.bson.BsonDocument mongodb_100KB(Document100KBState state) {
         BsonBinaryReader reader = new BsonBinaryReader(new ByteBufferBsonInput(
             new org.bson.ByteBufNIO(ByteBuffer.wrap(state.bsonData))));
         BsonDocumentCodec codec = new BsonDocumentCodec();
-        BsonDocument result = codec.decode(reader, DecoderContext.builder().build());
+        org.bson.BsonDocument result = codec.decode(reader, DecoderContext.builder().build());
         reader.close();
         return result;
     }
@@ -303,18 +304,18 @@ public class BsonParserBenchmark {
     // ==================== 1MB 文档测试 ====================
 
     @Benchmark
-    public Map<String, Object> fastbson_1MB(Document1MBState state) {
+    public com.cloud.fastbson.document.BsonDocument fastbson_1MB(Document1MBState state) {
         BsonReader reader = new BsonReader(state.bsonData);
         TypeHandler handler = new TypeHandler();
-        return handler.parseDocument(reader);
+        return (com.cloud.fastbson.document.BsonDocument) DocumentParser.INSTANCE.parse(reader);
     }
 
     @Benchmark
-    public BsonDocument mongodb_1MB(Document1MBState state) {
+    public org.bson.BsonDocument mongodb_1MB(Document1MBState state) {
         BsonBinaryReader reader = new BsonBinaryReader(new ByteBufferBsonInput(
             new org.bson.ByteBufNIO(ByteBuffer.wrap(state.bsonData))));
         BsonDocumentCodec codec = new BsonDocumentCodec();
-        BsonDocument result = codec.decode(reader, DecoderContext.builder().build());
+        org.bson.BsonDocument result = codec.decode(reader, DecoderContext.builder().build());
         reader.close();
         return result;
     }

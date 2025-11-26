@@ -1,5 +1,7 @@
 package com.cloud.fastbson.parser;
 
+import com.cloud.fastbson.document.BsonArray;
+import com.cloud.fastbson.document.BsonDocument;
 import com.cloud.fastbson.handler.TypeHandler;
 import com.cloud.fastbson.matcher.FieldMatcher;
 import com.cloud.fastbson.reader.BsonReader;
@@ -19,6 +21,10 @@ import java.util.Set;
  *   <li>提前退出：找到所有目标字段后立即停止解析</li>
  *   <li>性能优化：避免解析整个文档</li>
  * </ul>
+ *
+ * <p><b>注意：</b>此类返回Map&lt;String, Object&gt;会产生装箱开销。
+ * 对于追求极致性能的场景，建议直接使用 {@link com.cloud.fastbson.FastBson#parse(byte[])}
+ * 返回的 {@link BsonDocument}，它提供零拷贝、零装箱的lazy parsing。
  *
  * <p>使用示例：
  * <pre>{@code
@@ -153,8 +159,16 @@ public class PartialParser {
 
             // 判断是否为目标字段
             if (fieldMatcher.matches(fieldName)) {
-                // 解析字段值
-                Object value = typeHandler.parseValue(reader, type);
+                // 解析字段值 (直接使用parser，避免装箱转换)
+                Object value = typeHandler.getParsedValue(reader, type);
+                // 对于BsonDocument/BsonArray，需要转换为普通Object以保持API兼容
+                if (value instanceof BsonDocument) {
+                    // 暂时保留装箱行为以保持API兼容性
+                    // TODO: 考虑提供返回BsonDocument的高性能API
+                    value = convertDocumentToMap((BsonDocument) value);
+                } else if (value instanceof BsonArray) {
+                    value = convertArrayToList((BsonArray) value);
+                }
                 result.put(fieldName, value);
 
                 // 增加已找到的字段计数
@@ -180,5 +194,41 @@ public class PartialParser {
      */
     public int getTargetFieldCount() {
         return fieldMatcher.getTargetFieldCount();
+    }
+
+    /**
+     * 将BsonDocument转换为Map (用于保持API兼容性)
+     */
+    private Map<String, Object> convertDocumentToMap(BsonDocument doc) {
+        Map<String, Object> map = new HashMap<String, Object>();
+        for (String fieldName : doc.fieldNames()) {
+            Object value = doc.get(fieldName);
+            // 递归转换嵌套文档和数组
+            if (value instanceof BsonDocument) {
+                value = convertDocumentToMap((BsonDocument) value);
+            } else if (value instanceof BsonArray) {
+                value = convertArrayToList((BsonArray) value);
+            }
+            map.put(fieldName, value);
+        }
+        return map;
+    }
+
+    /**
+     * 将BsonArray转换为List (用于保持API兼容性)
+     */
+    private java.util.List<Object> convertArrayToList(BsonArray array) {
+        java.util.List<Object> list = new java.util.ArrayList<Object>(array.size());
+        for (int i = 0; i < array.size(); i++) {
+            Object value = array.get(i);
+            // 递归转换嵌套文档和数组
+            if (value instanceof BsonDocument) {
+                value = convertDocumentToMap((BsonDocument) value);
+            } else if (value instanceof BsonArray) {
+                value = convertArrayToList((BsonArray) value);
+            }
+            list.add(value);
+        }
+        return list;
     }
 }

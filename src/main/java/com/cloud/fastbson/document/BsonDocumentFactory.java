@@ -3,27 +3,19 @@ package com.cloud.fastbson.document;
 /**
  * BSON文档工厂接口
  *
- * <p>用于创建Document和Builder实例，支持不同的实现策略。
+ * <p>用于创建Document和Builder实例。
  *
- * <p>FastBSON提供两种实现：
- * <ul>
- *   <li><b>Fast实现（默认）</b>: 使用fastutil的primitive maps，零装箱，性能最优，需要fastutil依赖</li>
- *   <li><b>Simple实现</b>: 零依赖，使用Union类型（BsonValue），性能次优但仍优于装箱</li>
- * </ul>
+ * <p>FastBSON使用FastBsonDocumentFactory实现（fastutil-based，零装箱，高性能）。
  *
  * <p>使用示例：
  * <pre>{@code
- * // 使用默认工厂（Fast实现）
+ * // 使用默认工厂
  * BsonDocumentFactory factory = BsonDocumentFactories.getDefault();
  * BsonDocumentBuilder builder = factory.newDocumentBuilder();
  * builder.putInt32("age", 25);
  * BsonDocument doc = builder.build();
- *
- * // 或者显式选择Simple实现（零依赖）
- * TypeHandler.setDocumentFactory(SimpleBsonDocumentFactory.INSTANCE);
  * }</pre>
  *
- * @see com.cloud.fastbson.document.simple.SimpleBsonDocumentFactory
  * @see com.cloud.fastbson.document.fast.FastBsonDocumentFactory
  * @since 1.0
  */

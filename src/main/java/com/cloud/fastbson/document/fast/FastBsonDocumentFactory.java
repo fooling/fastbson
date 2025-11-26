@@ -36,7 +36,6 @@ import com.cloud.fastbson.document.BsonDocumentFactory;
  * <p>注意：
  * <ul>
  *   <li>需要添加fastutil依赖（it.unimi.dsi:fastutil:8.5.12）</li>
- *   <li>如果不想添加依赖，可以使用SimpleBsonDocumentFactory</li>
  * </ul>
  */
 public final class FastBsonDocumentFactory implements BsonDocumentFactory {
