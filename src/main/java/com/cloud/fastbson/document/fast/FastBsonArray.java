@@ -299,36 +299,38 @@ public final class FastBsonArray implements BsonArray {
     }
 
     private void appendValueAsJson(StringBuilder sb, int index, byte type) {
+        int localIndex = localIndices.getInt(index);  // 获取局部索引
+
         switch (type) {
             case BsonType.INT32:
-                sb.append(intElements.getInt(index));
+                sb.append(intElements.getInt(localIndex));
                 break;
             case BsonType.INT64:
-                sb.append(longElements.getLong(index));
+                sb.append(longElements.getLong(localIndex));
                 break;
             case BsonType.DOUBLE:
-                sb.append(doubleElements.getDouble(index));
+                sb.append(doubleElements.getDouble(localIndex));
                 break;
             case BsonType.BOOLEAN:
-                sb.append(booleanElements.get(index));
+                sb.append(booleanElements.get(index));  // Boolean uses global index
                 break;
             case BsonType.STRING:
-                sb.append('\"').append(escapeJson(stringElements.get(index))).append('\"');
+                sb.append('\"').append(escapeJson(stringElements.get(localIndex))).append('\"');
                 break;
             case BsonType.DOCUMENT:
-                sb.append(((BsonDocument) complexElements.get(index)).toJson());
+                sb.append(((BsonDocument) complexElements.get(localIndex)).toJson());
                 break;
             case BsonType.ARRAY:
-                sb.append(((BsonArray) complexElements.get(index)).toJson());
+                sb.append(((BsonArray) complexElements.get(localIndex)).toJson());
                 break;
             case BsonType.NULL:
                 sb.append("null");
                 break;
             case BsonType.OBJECT_ID:
-                sb.append('\"').append(complexElements.get(index)).append('\"');
+                sb.append('\"').append(complexElements.get(localIndex)).append('\"');
                 break;
             case BsonType.DATE_TIME:
-                sb.append(longElements.getLong(index));
+                sb.append(longElements.getLong(localIndex));
                 break;
             default:
                 sb.append("\"<unsupported>\"");
