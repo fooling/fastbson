@@ -4,12 +4,14 @@
 
 [![Java](https://img.shields.io/badge/Java-8-blue.svg)](https://www.oracle.com/java/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-green.svg)](LICENSE)
+[![Tests](https://img.shields.io/badge/Tests-349%20passing-brightgreen.svg)]()
+[![Coverage](https://img.shields.io/badge/Coverage-100%25-brightgreen.svg)]()
 
 ---
 
-## 项目概述
+## 🚀 项目概述
 
-FastBSON 是一个专注于高性能的 BSON（Binary JSON）反序列化库，特别优化了部分字段读取场景。通过智能跳过不需要的字段，在只需要少量字段时可实现 **3-10倍** 的性能提升。
+FastBSON 是一个专注于高性能的 BSON（Binary JSON）反序列化库，特别优化了部分字段读取场景。通过智能跳过不需要的字段和零复制惰性解析技术，在只需要少量字段时可实现 **3-10倍** 的性能提升。
 
 ### 核心特性
 
