@@ -4,12 +4,14 @@
 
 [![Java](https://img.shields.io/badge/Java-8-blue.svg)](https://www.oracle.com/java/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-green.svg)](LICENSE)
+[![Tests](https://img.shields.io/badge/Tests-657%20passing-brightgreen.svg)]()
+[![Coverage](https://img.shields.io/badge/Coverage-62%25-yellow.svg)]()
 
 ---
 
-## 项目概述
+## 🚀 项目概述
 
-FastBSON 是一个专注于高性能的 BSON（Binary JSON）反序列化库，特别优化了部分字段读取场景。通过智能跳过不需要的字段，在只需要少量字段时可实现 **3-10倍** 的性能提升。
+FastBSON 是一个专注于高性能的 BSON（Binary JSON）反序列化库，特别优化了部分字段读取场景。通过智能跳过不需要的字段和零复制惰性解析技术，在只需要少量字段时可实现 **3-10倍** 的性能提升。
 
 ### 核心特性
 
@@ -116,7 +118,7 @@ String department = doc.getString("department", "Unknown");
 
 **Phase 1 最终成果：**
 - 📊 测试总数：**189 个**（全部通过）
-- 📈 分支覆盖率：**100%** (130/130 branches)
+- 📈 分支覆盖率：**100%** (130/130 branches) - Phase 1 组件
 - 🚀 性能优势：**1.34x ~ 3.88x** vs MongoDB BSON
 - ✅ 端到端兼容性：所有 21 种 BSON 类型验证通过
 - ✅ 深度嵌套：支持 50+ 层嵌套，无栈溢出
@@ -145,7 +147,7 @@ String department = doc.getString("department", "Unknown");
 - ✅ Phase 2.7: 完整 Benchmark 对比测试（8 个测试）
 
 **Phase 2 最终成果：**
-- 📊 测试总数：**349 个**（全部通过）
+- 📊 测试总数：**657 个**（全部通过，包含 PR #14 新增的 306 个测试）
 - 📈 代码覆盖率：维持高覆盖率
 - 🚀 性能优势：
   - **PartialParser (早退)**: 7-8x vs MongoDB BSON
