@@ -15,7 +15,7 @@ FastBSON 已完成 Phase 1 和 Phase 2 的所有功能开发，实现了高性�
 - ✅ **完整 BSON 支持**：所有 21 种 MongoDB 3.4 BSON 类型
 - ✅ **三种解析模式**：HashMap (完整解析) / PartialParser (早退优化) / IndexedDocument (零复制惰性)
 - ✅ **零复制架构**：IndexedBsonDocument 和 IndexedBsonArray 实现真正的零复制
-- ✅ **测试完备**：349 个测试，100% 分支覆盖率
+- ✅ **测试完备**：657 个测试，~62% 全局分支覆盖率（HashMap 100%）
 - ✅ **性能卓越**：2.18x ~ 7.99x vs MongoDB BSON（取决于使用场景）
 
 ---
@@ -724,15 +724,101 @@ public class IndexedBsonDocument implements BsonDocument {
 
 ---
 
-### Phase 2 (2.1-2.16) 总结
+### Phase 2.17: 测试覆盖率增强 (PR #14)
+
+**完成时间**: 2025-11-27
+
+**PR 编号**: #14
+
+#### 功能特性
+
+- ✅ 新增 306 个单元测试
+- ✅ 覆盖率从 ~40% 提升至 ~62%
+- ✅ HashMap 系列达到 100% 分支覆盖
+- ✅ Fast 系列达到 78-84% 分支覆盖
+
+#### 测试详情
+
+**1. HashMapBsonDocumentTest - 74 个测试**
+- 分支覆盖：88/88 (100%)
+- 所有 getter 方法的 4 分支模式测试：
+  - 字段存在并正确返回值
+  - 字段不存在返回 null
+  - 字段类型错误抛出异常
+  - 使用默认值的变体
+- 覆盖类型：Int32, Int64, Double, String, Boolean, Binary, ObjectId, DateTime, Timestamp, Regex, Decimal128
+- 边界情况：equals/hashCode/toString, containsKey, isEmpty, size, keySet, values, entrySet
+- Iterator 功能：hasNext/next 遍历
+
+**2. HashMapBsonArrayTest - 84 个测试**
+- 分支覆盖：118/118 (100%)
+- 所有索引访问 getter 方法（同上类型）
+- Iterator 功能完整测试：
+  - hasNext/next 正常遍历
+  - remove() 操作和 IllegalStateException
+  - 并发修改检测
+- 边界情况：
+  - 空数组处理
+  - 索引越界（负数、超出范围）
+  - null 值处理
+- equals/hashCode/toString 测试
+
+**3. HashMapBsonDocumentBuilder/ArrayBuilder - 12 个测试**
+- 分支覆盖：4/4 (100%)
+- Builder 生命周期测试：
+  - build() 一次成功
+  - build() 第二次抛出 IllegalStateException
+  - putXXX/addXXX 正常添加元素
+
+**4. FastBsonArrayTest - 80 个测试**
+- 分支覆盖：94/112 (83.9%)
+- fastutil 零装箱原始类型访问测试
+- 所有类型特定 getter：
+  - getInt(index), getLong(index), getDouble(index), etc.
+  - 4 分支模式（存在/不存在/类型错误/默认值）
+- Iterator 和 JSON 序列化测试
+- 边界情况测试（空数组、越界、null）
+
+**5. FastBsonDocumentTest - 56 个测试**
+- 分支覆盖：75/96 (78.1%)
+- 所有 getter 方法的正确异常处理
+- fastutil primitive maps 的零装箱访问
+- 边界情况测试
+
+#### 统计数据
+
+| 测试类 | 测试数 | 覆盖分支 | 覆盖率 |
+|--------|-------|---------|--------|
+| HashMapBsonDocumentTest | 74 | 88/88 | **100%** |
+| HashMapBsonArrayTest | 84 | 118/118 | **100%** |
+| HashMapBuilder (2 files) | 12 | 4/4 | **100%** |
+| FastBsonArrayTest | 80 | 94/112 | 83.9% |
+| FastBsonDocumentTest | 56 | 75/96 | 78.1% |
+| **总计** | **306** | **379/418** | **90.6%** |
+
+#### 覆盖率提升
+
+- **提升前**：351 个测试，~40% 全局覆盖率
+- **提升后**：657 个测试，~62% 全局覆盖率
+- **改进幅度**：+306 个测试，+22% 覆盖率
+
+#### 测试覆盖
+
+- ✅ 657 个测试全部通过
+- ✅ HashMap 系列 100% 分支覆盖
+- ✅ Fast 系列 78-84% 分支覆盖（持续改进中）
+
+---
+
+### Phase 2 (2.1-2.17) 总结
 
 **完成时间**: 2025-11-26
 
 #### 总体成果
 
-- ✅ **16/16 任务全部完成**（100%）
-- ✅ **测试总数**: 349 个（全部通过）
-- ✅ **代码覆盖率**: 100% 分支覆盖
+- ✅ **17/17 任务全部完成**（100%，包含 PR #14）
+- ✅ **测试总数**: 657 个（全部通过）
+- ✅ **代码覆盖率**: ~62% 全局分支覆盖（HashMap 100%, Fast/Indexed 78-84%）
 - ✅ **架构优化**: 模块化、清晰职责分离
 - ✅ **性能卓越**: 2.18x ~ 7.99x vs MongoDB（不同模式）
 
@@ -782,11 +868,11 @@ Phase 3 将专注于进一步的性能优化，详见 `docs/backlog.md`。
 
 ## 版本历史
 
-- **v1.0.0-SNAPSHOT** (2025-11-26) - Phase 1 & Phase 2 完成
+- **v1.0.0-SNAPSHOT** (2025-11-27) - Phase 1 & Phase 2 完成（含 PR #14）
   - 完整 BSON 支持
   - 三种解析模式
   - 零复制架构
-  - 349 个测试，100% 覆盖率
+  - 657 个测试，~62% 全局覆盖率（HashMap 100%）
   - 2.18x ~ 7.99x vs MongoDB
 
 ---
