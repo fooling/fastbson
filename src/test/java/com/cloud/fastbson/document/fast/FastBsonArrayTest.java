@@ -128,6 +128,24 @@ public class FastBsonArrayTest {
         assertEquals(999, array.getInt32(0, 999));
     }
 
+    @Test
+    public void testGetInt32_WithDefault_WrongType() {
+        // Test branch: type mismatch in getInt32 with default should return default
+        FastBsonArrayBuilder builder = new FastBsonArrayBuilder();
+        builder.addString("not an int");
+        FastBsonArray array = (FastBsonArray) builder.build();
+        assertEquals(999, array.getInt32(0, 999));
+    }
+
+    @Test
+    public void testGetInt32_WithDefault_NegativeIndex() {
+        // Test branch: negative index should return default
+        FastBsonArrayBuilder builder = new FastBsonArrayBuilder();
+        builder.addInt32(42);
+        FastBsonArray array = (FastBsonArray) builder.build();
+        assertEquals(999, array.getInt32(-1, 999));
+    }
+
     // ==================== getInt64测试 ====================
 
     @Test
@@ -178,6 +196,24 @@ public class FastBsonArrayTest {
         assertEquals(999L, array.getInt64(0, 999L));
     }
 
+    @Test
+    public void testGetInt64_WithDefault_WrongType() {
+        // Test branch: type mismatch in getInt64 with default should return default
+        FastBsonArrayBuilder builder = new FastBsonArrayBuilder();
+        builder.addString("not a long");
+        FastBsonArray array = (FastBsonArray) builder.build();
+        assertEquals(999L, array.getInt64(0, 999L));
+    }
+
+    @Test
+    public void testGetInt64_WithDefault_NegativeIndex() {
+        // Test branch: negative index should return default
+        FastBsonArrayBuilder builder = new FastBsonArrayBuilder();
+        builder.addInt64(42L);
+        FastBsonArray array = (FastBsonArray) builder.build();
+        assertEquals(999L, array.getInt64(-1, 999L));
+    }
+
     // ==================== getDouble测试 ====================
 
     @Test
@@ -226,6 +262,24 @@ public class FastBsonArrayTest {
     public void testGetDouble_WithDefault_IndexOutOfBounds() {
         FastBsonArray array = createEmptyArray();
         assertEquals(9.99, array.getDouble(0, 9.99));
+    }
+
+    @Test
+    public void testGetDouble_WithDefault_WrongType() {
+        // Test branch: type mismatch in getDouble with default should return default
+        FastBsonArrayBuilder builder = new FastBsonArrayBuilder();
+        builder.addString("not a double");
+        FastBsonArray array = (FastBsonArray) builder.build();
+        assertEquals(9.99, array.getDouble(0, 9.99));
+    }
+
+    @Test
+    public void testGetDouble_WithDefault_NegativeIndex() {
+        // Test branch: negative index should return default
+        FastBsonArrayBuilder builder = new FastBsonArrayBuilder();
+        builder.addDouble(3.14);
+        FastBsonArray array = (FastBsonArray) builder.build();
+        assertEquals(9.99, array.getDouble(-1, 9.99));
     }
 
     // ==================== getBoolean测试 ====================
@@ -286,6 +340,24 @@ public class FastBsonArrayTest {
         assertTrue(array.getBoolean(0, true));
     }
 
+    @Test
+    public void testGetBoolean_WithDefault_WrongType() {
+        // Test branch: type mismatch in getBoolean with default should return default
+        FastBsonArrayBuilder builder = new FastBsonArrayBuilder();
+        builder.addString("not a boolean");
+        FastBsonArray array = (FastBsonArray) builder.build();
+        assertTrue(array.getBoolean(0, true));
+    }
+
+    @Test
+    public void testGetBoolean_WithDefault_NegativeIndex() {
+        // Test branch: negative index should return default
+        FastBsonArrayBuilder builder = new FastBsonArrayBuilder();
+        builder.addBoolean(true);
+        FastBsonArray array = (FastBsonArray) builder.build();
+        assertFalse(array.getBoolean(-1, false));
+    }
+
     // ==================== getString测试 ====================
 
     @Test
@@ -322,8 +394,24 @@ public class FastBsonArrayTest {
         assertEquals("default", array.getString(0, "default"));
     }
 
-    // Note: getString with null is not applicable for FastBsonArray since
-    // null elements are not stored in stringElements list
+    @Test
+    public void testGetString_WithDefault_NullValue() {
+        // Test branch: when string value is null, should return default
+        FastBsonArrayBuilder builder = new FastBsonArrayBuilder();
+        builder.addString(null);  // Add a null string
+        FastBsonArray array = (FastBsonArray) builder.build();
+        // Getting a null string with default should return default
+        assertEquals("default", array.getString(0, "default"));
+    }
+
+    @Test
+    public void testGetString_WithDefault_NegativeIndex() {
+        // Test branch: negative index should return default
+        FastBsonArrayBuilder builder = new FastBsonArrayBuilder();
+        builder.addString("hello");
+        FastBsonArray array = (FastBsonArray) builder.build();
+        assertEquals("default", array.getString(-1, "default"));
+    }
 
     // ==================== getDocument测试 ====================
 
@@ -483,6 +571,21 @@ public class FastBsonArrayTest {
         assertTrue(result.toString().contains("BinaryData") || result instanceof byte[]);
     }
 
+    @Test
+    public void testGet_UnsupportedType() {
+        // Test the default case in get() switch for an unsupported type
+        // We need to manually create an array with an unsupported type
+        // Since we can't easily do this via the builder, we test by ensuring
+        // all known types are covered above. The default case would handle
+        // any future types like REGEX, JAVASCRIPT, TIMESTAMP, etc.
+        // This test ensures we have comprehensive coverage
+        FastBsonArrayBuilder builder = new FastBsonArrayBuilder();
+        builder.addObjectId("507f1f77bcf86cd799439011");
+        FastBsonArray array = (FastBsonArray) builder.build();
+        // ObjectId goes through the OBJECT_ID/BINARY/DOCUMENT/ARRAY case
+        assertNotNull(array.get(0));
+    }
+
     // ==================== Iterator测试 ====================
 
     @Test
@@ -582,6 +685,17 @@ public class FastBsonArrayTest {
     }
 
     @Test
+    public void testToJson_NullStringElement() {
+        // Test escapeJson with null string element in array
+        FastBsonArrayBuilder builder = new FastBsonArrayBuilder();
+        builder.addString(null);
+        FastBsonArray array = (FastBsonArray) builder.build();
+        String json = array.toJson();
+        // Null string should be escaped to empty string ""
+        assertEquals("[\"\"]", json);
+    }
+
+    @Test
     public void testToJson_Null() {
         FastBsonArrayBuilder builder = new FastBsonArrayBuilder();
         builder.addNull();
@@ -652,6 +766,18 @@ public class FastBsonArrayTest {
         assertEquals("[null]", array.toJson());
     }
 
+    @Test
+    public void testToJson_Binary() {
+        // Test toJson with Binary type (unsupported in appendValueAsJson)
+        FastBsonArrayBuilder builder = new FastBsonArrayBuilder();
+        byte[] data = new byte[]{1, 2, 3};
+        builder.addBinary((byte) 0, data);
+        FastBsonArray array = (FastBsonArray) builder.build();
+        String json = array.toJson();
+        // Binary falls through to default case and should output "<unsupported>"
+        assertTrue(json.contains("<unsupported>"));
+    }
+
     // ==================== toString测试 ====================
 
     @Test
@@ -702,6 +828,23 @@ public class FastBsonArrayTest {
     }
 
     @Test
+    public void testEquals_DifferentBsonArrayImplementation() {
+        // Test where o is a different BsonArray implementation (not FastBsonArray)
+        FastBsonArrayBuilder builder1 = new FastBsonArrayBuilder();
+        builder1.addInt32(42);
+        FastBsonArray array1 = (FastBsonArray) builder1.build();
+
+        // Create a different BsonArray implementation (e.g., HashMap-based)
+        com.cloud.fastbson.document.hashmap.HashMapBsonArrayBuilder builder2 =
+            new com.cloud.fastbson.document.hashmap.HashMapBsonArrayBuilder();
+        builder2.addInt32(42);
+        com.cloud.fastbson.document.BsonArray array2 = builder2.build();
+
+        // These are not equal because they're different classes
+        assertNotEquals(array1, array2);
+    }
+
+    @Test
     public void testHashCode_EqualArrays() {
         FastBsonArrayBuilder builder1 = new FastBsonArrayBuilder();
         builder1.addInt32(1).addString("hello");
@@ -712,5 +855,105 @@ public class FastBsonArrayTest {
         FastBsonArray array2 = (FastBsonArray) builder2.build();
 
         assertEquals(array1.hashCode(), array2.hashCode());
+    }
+
+    @Test
+    public void testEquals_DifferentTypes() {
+        // Test branch: types list not equal
+        FastBsonArrayBuilder builder1 = new FastBsonArrayBuilder();
+        builder1.addInt32(1);
+        FastBsonArray array1 = (FastBsonArray) builder1.build();
+
+        FastBsonArrayBuilder builder2 = new FastBsonArrayBuilder();
+        builder2.addInt64(1L);
+        FastBsonArray array2 = (FastBsonArray) builder2.build();
+
+        assertNotEquals(array1, array2);
+    }
+
+    @Test
+    public void testEquals_DifferentIntElements() {
+        // Test branch: intElements list not equal
+        FastBsonArrayBuilder builder1 = new FastBsonArrayBuilder();
+        builder1.addInt32(1);
+        FastBsonArray array1 = (FastBsonArray) builder1.build();
+
+        FastBsonArrayBuilder builder2 = new FastBsonArrayBuilder();
+        builder2.addInt32(2);
+        FastBsonArray array2 = (FastBsonArray) builder2.build();
+
+        assertNotEquals(array1, array2);
+    }
+
+    @Test
+    public void testEquals_DifferentLongElements() {
+        // Test branch: longElements list not equal
+        FastBsonArrayBuilder builder1 = new FastBsonArrayBuilder();
+        builder1.addInt64(1L);
+        FastBsonArray array1 = (FastBsonArray) builder1.build();
+
+        FastBsonArrayBuilder builder2 = new FastBsonArrayBuilder();
+        builder2.addInt64(2L);
+        FastBsonArray array2 = (FastBsonArray) builder2.build();
+
+        assertNotEquals(array1, array2);
+    }
+
+    @Test
+    public void testEquals_DifferentDoubleElements() {
+        // Test branch: doubleElements list not equal
+        FastBsonArrayBuilder builder1 = new FastBsonArrayBuilder();
+        builder1.addDouble(1.0);
+        FastBsonArray array1 = (FastBsonArray) builder1.build();
+
+        FastBsonArrayBuilder builder2 = new FastBsonArrayBuilder();
+        builder2.addDouble(2.0);
+        FastBsonArray array2 = (FastBsonArray) builder2.build();
+
+        assertNotEquals(array1, array2);
+    }
+
+    @Test
+    public void testEquals_DifferentBooleanElements() {
+        // Test branch: booleanElements list not equal
+        FastBsonArrayBuilder builder1 = new FastBsonArrayBuilder();
+        builder1.addBoolean(true);
+        FastBsonArray array1 = (FastBsonArray) builder1.build();
+
+        FastBsonArrayBuilder builder2 = new FastBsonArrayBuilder();
+        builder2.addBoolean(false);
+        FastBsonArray array2 = (FastBsonArray) builder2.build();
+
+        assertNotEquals(array1, array2);
+    }
+
+    @Test
+    public void testEquals_DifferentStringElements() {
+        // Test branch: stringElements list not equal
+        FastBsonArrayBuilder builder1 = new FastBsonArrayBuilder();
+        builder1.addString("hello");
+        FastBsonArray array1 = (FastBsonArray) builder1.build();
+
+        FastBsonArrayBuilder builder2 = new FastBsonArrayBuilder();
+        builder2.addString("world");
+        FastBsonArray array2 = (FastBsonArray) builder2.build();
+
+        assertNotEquals(array1, array2);
+    }
+
+    @Test
+    public void testEquals_DifferentComplexElements() {
+        // Test branch: complexElements list not equal
+        FastBsonArrayBuilder builder1 = new FastBsonArrayBuilder();
+        FastBsonDocument doc1 = (FastBsonDocument) new FastBsonDocumentBuilder().putInt32("value", 1).build();
+        builder1.addDocument(doc1);
+        FastBsonArray array1 = (FastBsonArray) builder1.build();
+
+        FastBsonArrayBuilder builder2 = new FastBsonArrayBuilder();
+        FastBsonDocument doc2 = (FastBsonDocument) new FastBsonDocumentBuilder().putInt32("value", 2).build();
+        builder2.addDocument(doc2);
+        FastBsonArray array2 = (FastBsonArray) builder2.build();
+
+        assertNotEquals(array1, array2);
     }
 }

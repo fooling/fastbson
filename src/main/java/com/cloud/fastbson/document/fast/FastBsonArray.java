@@ -113,6 +113,10 @@ public final class FastBsonArray implements BsonArray {
         if (index < 0 || index >= types.size()) {
             return defaultValue;
         }
+        byte type = types.getByte(index);
+        if (type != BsonType.INT32) {
+            return defaultValue;
+        }
         int localIndex = localIndices.getInt(index);
         return intElements.getInt(localIndex);
     }
@@ -134,6 +138,10 @@ public final class FastBsonArray implements BsonArray {
     @Override
     public long getInt64(int index, long defaultValue) {
         if (index < 0 || index >= types.size()) {
+            return defaultValue;
+        }
+        byte type = types.getByte(index);
+        if (type != BsonType.INT64) {
             return defaultValue;
         }
         int localIndex = localIndices.getInt(index);
@@ -159,6 +167,10 @@ public final class FastBsonArray implements BsonArray {
         if (index < 0 || index >= types.size()) {
             return defaultValue;
         }
+        byte type = types.getByte(index);
+        if (type != BsonType.DOUBLE) {
+            return defaultValue;
+        }
         int localIndex = localIndices.getInt(index);
         return doubleElements.getDouble(localIndex);
     }
@@ -179,6 +191,10 @@ public final class FastBsonArray implements BsonArray {
     @Override
     public boolean getBoolean(int index, boolean defaultValue) {
         if (index < 0 || index >= types.size()) {
+            return defaultValue;
+        }
+        byte type = types.getByte(index);
+        if (type != BsonType.BOOLEAN) {
             return defaultValue;
         }
         return booleanElements.get(index);
