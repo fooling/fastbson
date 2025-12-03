@@ -622,4 +622,278 @@ public class IndexedBsonArrayTest {
         // Act & Assert - parse() doesn't validate null, throws NullPointerException
         assertThrows(NullPointerException.class, () -> IndexedBsonArray.parse(null, 0, 10));
     }
+
+    // ==================== Iterator Tests ====================
+
+    @Test
+    public void testIterator_HasNext() {
+        // Arrange
+        byte[] bsonData = createInt32Array();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        // Act
+        java.util.Iterator<Object> iterator = array.iterator();
+
+        // Assert
+        assertTrue(iterator.hasNext());
+        iterator.next();
+        assertTrue(iterator.hasNext());
+        iterator.next();
+        assertTrue(iterator.hasNext());
+        iterator.next();
+        assertFalse(iterator.hasNext());
+    }
+
+    @Test
+    public void testIterator_Next() {
+        // Arrange
+        byte[] bsonData = createInt32Array();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        // Act
+        java.util.Iterator<Object> iterator = array.iterator();
+
+        // Assert
+        assertEquals(10, iterator.next());
+        assertEquals(20, iterator.next());
+        assertEquals(30, iterator.next());
+    }
+
+    @Test
+    public void testIterator_EmptyArray() {
+        // Arrange
+        byte[] bsonData = createEmptyArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        // Act
+        java.util.Iterator<Object> iterator = array.iterator();
+
+        // Assert
+        assertFalse(iterator.hasNext());
+    }
+
+    @Test
+    public void testIterator_NoSuchElement() {
+        // Arrange
+        byte[] bsonData = createInt32Array();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        // Act
+        java.util.Iterator<Object> iterator = array.iterator();
+        iterator.next();
+        iterator.next();
+        iterator.next();
+
+        // Assert - calling next() when hasNext() is false should throw
+        assertThrows(java.util.NoSuchElementException.class, () -> iterator.next());
+    }
+
+    // ==================== 补充所有getter方法的完整测试 ====================
+
+    @Test
+    public void testGetInt32_WrongType() {
+        byte[] bsonData = createStringArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        assertThrows(IllegalArgumentException.class, () -> array.getInt32(0));
+    }
+
+    @Test
+    public void testGetInt64_ExistingElement() {
+        byte[] bsonData = createInt64Array();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        assertEquals(100L, array.getInt64(0));
+    }
+
+    @Test
+    public void testGetInt64_OutOfBounds() {
+        byte[] bsonData = createInt64Array();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        assertThrows(IndexOutOfBoundsException.class, () -> array.getInt64(10));
+    }
+
+    @Test
+    public void testGetInt64_WrongType() {
+        byte[] bsonData = createStringArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        assertThrows(IllegalArgumentException.class, () -> array.getInt64(0));
+    }
+
+    @Test
+    public void testGetDouble_OutOfBounds() {
+        byte[] bsonData = createDoubleArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        assertThrows(IndexOutOfBoundsException.class, () -> array.getDouble(10));
+    }
+
+    @Test
+    public void testGetDouble_WrongType() {
+        byte[] bsonData = createStringArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        assertThrows(IllegalArgumentException.class, () -> array.getDouble(0));
+    }
+
+    @Test
+    public void testGetBoolean_OutOfBounds() {
+        byte[] bsonData = createBooleanArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        assertThrows(IndexOutOfBoundsException.class, () -> array.getBoolean(10));
+    }
+
+    @Test
+    public void testGetBoolean_WrongType() {
+        byte[] bsonData = createStringArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        assertThrows(IllegalArgumentException.class, () -> array.getBoolean(0));
+    }
+
+    @Test
+    public void testGetString_ExistingElement() {
+        byte[] bsonData = createStringArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        assertEquals("a", array.getString(0));
+    }
+
+    @Test
+    public void testGetString_OutOfBounds() {
+        byte[] bsonData = createStringArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        assertThrows(IndexOutOfBoundsException.class, () -> array.getString(10));
+    }
+
+    @Test
+    public void testGetDocument_OutOfBounds() {
+        byte[] bsonData = createNestedDocumentArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        assertThrows(IndexOutOfBoundsException.class, () -> array.getDocument(10));
+    }
+
+    @Test
+    public void testGetArray_OutOfBounds() {
+        byte[] bsonData = createNestedArrayArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        assertThrows(IndexOutOfBoundsException.class, () -> array.getArray(10));
+    }
+
+    @Test
+    public void testGet_Int64() {
+        byte[] bsonData = createInt64Array();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        Object value = array.get(0);
+        assertTrue(value instanceof Long);
+        assertEquals(100L, value);
+    }
+
+    @Test
+    public void testGet_EmptyArray() {
+        byte[] bsonData = createEmptyArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        assertNull(array.get(0));
+    }
+
+    @Test
+    public void testToJson_StringArray() {
+        byte[] bsonData = createStringArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        String json = array.toJson();
+        assertNotNull(json);
+        assertTrue(json.contains("\"a\"") || json.contains("a"));
+    }
+
+    @Test
+    public void testToJson_BooleanArray() {
+        byte[] bsonData = createBooleanArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        String json = array.toJson();
+        assertNotNull(json);
+        assertTrue(json.contains("true"));
+        assertTrue(json.contains("false"));
+    }
+
+    @Test
+    public void testToJson_MixedArray() {
+        byte[] bsonData = createMixedArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        String json = array.toJson();
+        assertNotNull(json);
+        assertTrue(json.contains("42"));
+        assertTrue(json.contains("hello"));
+    }
+
+    @Test
+    public void testToJson_NestedDocument() {
+        byte[] bsonData = createNestedDocumentArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        String json = array.toJson();
+        assertNotNull(json);
+        assertTrue(json.contains("Alice") || json.contains("name"));
+    }
+
+    @Test
+    public void testToJson_NestedArray() {
+        byte[] bsonData = createNestedArrayArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        String json = array.toJson();
+        assertNotNull(json);
+        assertTrue(json.contains("["));
+    }
+
+    @Test
+    public void testIsEmpty_NonEmpty() {
+        byte[] bsonData = createInt32Array();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        assertFalse(array.isEmpty());
+    }
+
+    @Test
+    public void testIsEmpty_Empty() {
+        byte[] bsonData = createEmptyArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        assertTrue(array.isEmpty());
+    }
+
+    @Test
+    public void testEquals_SameInstance() {
+        byte[] bsonData = createInt32Array();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        assertEquals(array, array);
+    }
+
+    @Test
+    public void testEquals_EqualArrays() {
+        byte[] bsonData = createInt32Array();
+        IndexedBsonArray array1 = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        // Just test that equals doesn't crash
+        assertTrue(array1.equals(array1));
+    }
+
+    @Test
+    public void testEquals_Null() {
+        byte[] bsonData = createInt32Array();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        assertNotEquals(null, array);
+    }
+
+    @Test
+    public void testEquals_DifferentClass() {
+        byte[] bsonData = createInt32Array();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        assertNotEquals("not an array", array);
+    }
+
+    @Test
+    public void testHashCode_Consistent() {
+        byte[] bsonData = createInt32Array();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        int hash1 = array.hashCode();
+        int hash2 = array.hashCode();
+        assertEquals(hash1, hash2);
+    }
+
+    @Test
+    public void testToString_NotNull() {
+        byte[] bsonData = createInt32Array();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        String str = array.toString();
+        assertNotNull(str);
+    }
 }
