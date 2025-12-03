@@ -956,4 +956,112 @@ public class FastBsonArrayTest {
 
         assertNotEquals(array1, array2);
     }
+
+    // ==================== 额外的分支覆盖测试 ====================
+
+    @Test
+    public void testEquals_ShortCircuitOnTypes() {
+        // 确保types不同时，后续字段不会被比较（短路）
+        FastBsonArrayBuilder builder1 = new FastBsonArrayBuilder();
+        builder1.addInt32(1).addInt64(2L).addDouble(3.0).addBoolean(true).addString("test");
+        FastBsonArray array1 = (FastBsonArray) builder1.build();
+
+        FastBsonArrayBuilder builder2 = new FastBsonArrayBuilder();
+        builder2.addInt32(1).addInt64(2L).addDouble(3.0).addBoolean(true).addInt32(999);
+        FastBsonArray array2 = (FastBsonArray) builder2.build();
+
+        assertNotEquals(array1, array2);
+    }
+
+    @Test
+    public void testEquals_ShortCircuitOnIntElements() {
+        // 确保types相同但intElements不同时短路
+        FastBsonArrayBuilder builder1 = new FastBsonArrayBuilder();
+        builder1.addInt32(1).addInt32(2).addInt64(3L).addDouble(4.0);
+        FastBsonArray array1 = (FastBsonArray) builder1.build();
+
+        FastBsonArrayBuilder builder2 = new FastBsonArrayBuilder();
+        builder2.addInt32(1).addInt32(999).addInt64(3L).addDouble(4.0);
+        FastBsonArray array2 = (FastBsonArray) builder2.build();
+
+        assertNotEquals(array1, array2);
+    }
+
+    @Test
+    public void testGet_WithAllFieldTypes() {
+        // 测试一个包含所有字段类型的数组
+        FastBsonArrayBuilder builder = new FastBsonArrayBuilder();
+        builder.addInt32(1)
+               .addInt64(2L)
+               .addDouble(3.0)
+               .addBoolean(true)
+               .addString("test")
+               .addDocument(new FastBsonDocumentBuilder().putInt32("key", 123).build());
+
+        FastBsonArray array = (FastBsonArray) builder.build();
+
+        // 验证每个元素
+        assertEquals(1, array.get(0));
+        assertEquals(2L, array.get(1));
+        assertEquals(3.0, array.get(2));
+        assertEquals(true, array.get(3));
+        assertEquals("test", array.get(4));
+        assertNotNull(array.get(5));
+    }
+
+    @Test
+    public void testEquals_IdenticalEmptyArrays() {
+        // Test equals with two separate empty array instances
+        FastBsonArray array1 = (FastBsonArray) new FastBsonArrayBuilder().build();
+        FastBsonArray array2 = (FastBsonArray) new FastBsonArrayBuilder().build();
+        assertEquals(array1, array2);
+        assertEquals(array2, array1);
+    }
+
+    @Test
+    public void testEquals_WithAllFieldsMatching() {
+        // Comprehensive test with all field types matching
+        FastBsonArrayBuilder builder1 = new FastBsonArrayBuilder();
+        builder1.addInt32(1).addInt64(2L).addDouble(3.0)
+                .addBoolean(true).addString("test");
+        FastBsonArray array1 = (FastBsonArray) builder1.build();
+
+        FastBsonArrayBuilder builder2 = new FastBsonArrayBuilder();
+        builder2.addInt32(1).addInt64(2L).addDouble(3.0)
+                .addBoolean(true).addString("test");
+        FastBsonArray array2 = (FastBsonArray) builder2.build();
+
+        assertTrue(array1.equals(array2));
+        assertTrue(array2.equals(array1));
+    }
+
+    @Test
+    public void testGet_ArrayType() {
+        // Explicitly test ARRAY type in switch case
+        FastBsonArrayBuilder innerArray = new FastBsonArrayBuilder();
+        innerArray.addInt32(1).addInt32(2);
+
+        FastBsonArrayBuilder outerArray = new FastBsonArrayBuilder();
+        outerArray.addArray(innerArray.build());
+
+        FastBsonArray array = (FastBsonArray) outerArray.build();
+        Object result = array.get(0);
+        assertNotNull(result);
+        assertTrue(result instanceof BsonArray);
+    }
+
+    @Test
+    public void testGet_DocumentType() {
+        // Explicitly test DOCUMENT type in switch case
+        FastBsonDocumentBuilder doc = new FastBsonDocumentBuilder();
+        doc.putInt32("key", 123);
+
+        FastBsonArrayBuilder array = new FastBsonArrayBuilder();
+        array.addDocument(doc.build());
+
+        FastBsonArray fastArray = (FastBsonArray) array.build();
+        Object result = fastArray.get(0);
+        assertNotNull(result);
+        assertTrue(result instanceof BsonDocument);
+    }
 }
