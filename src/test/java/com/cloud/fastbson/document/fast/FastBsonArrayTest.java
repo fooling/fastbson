@@ -1036,6 +1036,34 @@ public class FastBsonArrayTest {
     }
 
     @Test
+    public void testEquals_WithComplexElements() {
+        // Test equals with all fields matching including complex elements
+        // This ensures we cover the branch where o != null AND getClass() == o.getClass()
+        // and all internal collections match
+        FastBsonDocumentBuilder docBuilder1 = new FastBsonDocumentBuilder();
+        docBuilder1.putInt32("key", 123);
+
+        FastBsonArrayBuilder builder1 = new FastBsonArrayBuilder();
+        builder1.addInt32(1).addInt64(2L).addDouble(3.0)
+                .addBoolean(true).addString("test")
+                .addDocument(docBuilder1.build());
+        FastBsonArray array1 = (FastBsonArray) builder1.build();
+
+        FastBsonDocumentBuilder docBuilder2 = new FastBsonDocumentBuilder();
+        docBuilder2.putInt32("key", 123);
+
+        FastBsonArrayBuilder builder2 = new FastBsonArrayBuilder();
+        builder2.addInt32(1).addInt64(2L).addDouble(3.0)
+                .addBoolean(true).addString("test")
+                .addDocument(docBuilder2.build());
+        FastBsonArray array2 = (FastBsonArray) builder2.build();
+
+        // Both should equal
+        assertTrue(array1.equals(array2));
+        assertTrue(array2.equals(array1));
+    }
+
+    @Test
     public void testGet_ArrayType() {
         // Explicitly test ARRAY type in switch case
         FastBsonArrayBuilder innerArray = new FastBsonArrayBuilder();
@@ -1064,4 +1092,74 @@ public class FastBsonArrayTest {
         assertNotNull(result);
         assertTrue(result instanceof BsonDocument);
     }
+
+    @Test
+    public void testEquals_WithNull() {
+        // Test equals with null
+        FastBsonArrayBuilder builder = new FastBsonArrayBuilder();
+        builder.addInt32(42);
+        FastBsonArray array = (FastBsonArray) builder.build();
+
+        assertFalse(array.equals(null));
+    }
+
+    @Test
+    public void testEquals_WithDifferentClass() {
+        // Test equals with different class
+        FastBsonArrayBuilder builder = new FastBsonArrayBuilder();
+        builder.addInt32(42);
+        FastBsonArray array = (FastBsonArray) builder.build();
+
+        assertFalse(array.equals("not an array"));
+        assertFalse(array.equals(Integer.valueOf(42)));
+    }
+
+    @Test
+    public void testEquals_WithDifferentElements() {
+        // Test equals with different elements
+        FastBsonArrayBuilder builder1 = new FastBsonArrayBuilder();
+        builder1.addInt32(42);
+        FastBsonArray array1 = (FastBsonArray) builder1.build();
+
+        FastBsonArrayBuilder builder2 = new FastBsonArrayBuilder();
+        builder2.addInt32(99);  // Different value
+        FastBsonArray array2 = (FastBsonArray) builder2.build();
+
+        assertFalse(array1.equals(array2));
+    }
+
+    @Test
+    public void testGet_WithUnsupportedType() throws Exception {
+        // Test Line 275: default case in get(int)
+        FastBsonArrayBuilder builder = new FastBsonArrayBuilder();
+        builder.addInt32(42);
+        FastBsonArray array = (FastBsonArray) builder.build();
+
+        // Use reflection to inject unsupported BSON type
+        java.lang.reflect.Field typesField = FastBsonArray.class.getDeclaredField("types");
+        typesField.setAccessible(true);
+        java.lang.reflect.Field localIndicesField = FastBsonArray.class.getDeclaredField("localIndices");
+        localIndicesField.setAccessible(true);
+        java.lang.reflect.Field complexElementsField = FastBsonArray.class.getDeclaredField("complexElements");
+        complexElementsField.setAccessible(true);
+
+        it.unimi.dsi.fastutil.bytes.ByteArrayList types =
+            (it.unimi.dsi.fastutil.bytes.ByteArrayList) typesField.get(array);
+        it.unimi.dsi.fastutil.ints.IntArrayList localIndices =
+            (it.unimi.dsi.fastutil.ints.IntArrayList) localIndicesField.get(array);
+        @SuppressWarnings("unchecked")
+        it.unimi.dsi.fastutil.objects.ObjectArrayList<Object> complexElements =
+            (it.unimi.dsi.fastutil.objects.ObjectArrayList<Object>) complexElementsField.get(array);
+
+        // Inject REGEX type (0x0B) which will trigger default case
+        types.add((byte) 0x0B);  // REGEX type
+        localIndices.add(complexElements.size());  // Local index in complexElements
+        complexElements.add("regex_value");
+
+        // Get the injected element - should trigger default branch
+        int newIndex = types.size() - 1;
+        Object result = array.get(newIndex);
+        assertEquals("regex_value", result);
+    }
+
 }

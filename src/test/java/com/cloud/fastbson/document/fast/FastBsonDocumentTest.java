@@ -756,4 +756,162 @@ public class FastBsonDocumentTest {
         FastBsonDocument doc = createEmptyDocument();
         assertNull(doc.get("nonexistent"));
     }
+
+    // ==================== 补充测试：覆盖剩余分支 ====================
+
+    @Test
+    public void testGetBoolean_WithDefault_BooleanFieldExistsFalse() {
+        // Test Line 219: booleanExists check when field exists with false value
+        FastBsonDocumentBuilder builder = new FastBsonDocumentBuilder();
+        builder.putBoolean("flag", false);
+        FastBsonDocument doc = (FastBsonDocument) builder.build();
+
+        // Field exists and value is false, should return false (not defaultValue)
+        assertFalse(doc.getBoolean("flag", true));
+    }
+
+    @Test
+    public void testGetString_WithDefault_NullValue() {
+        // Test Line 237: return value != null ? value : defaultValue
+        // Need to create a document with a null string field
+        FastBsonDocumentBuilder builder = new FastBsonDocumentBuilder();
+        builder.putString("nullField", null);
+        FastBsonDocument doc = (FastBsonDocument) builder.build();
+
+        // Field exists but value is null, should return defaultValue
+        assertEquals("default", doc.getString("nullField", "default"));
+    }
+
+    @Test
+    public void testToJson_WithNullString() {
+        // Test Line 372: if (str == null) in escapeJson
+        FastBsonDocumentBuilder builder = new FastBsonDocumentBuilder();
+        builder.putString("nullField", null);
+        FastBsonDocument doc = (FastBsonDocument) builder.build();
+
+        // toJson should handle null string gracefully
+        String json = doc.toJson();
+        assertTrue(json.contains("\"nullField\":\"\""));
+    }
+
+    @Test
+    public void testEquals_WithAllFieldTypesMatching() {
+        // Test Line 396 equals branches: comprehensive test with all field types
+        FastBsonDocumentBuilder builder1 = new FastBsonDocumentBuilder();
+        builder1.putInt32("int", 1)
+                .putInt64("long", 2L)
+                .putDouble("double", 3.0)
+                .putBoolean("bool", true)
+                .putString("str", "test");
+        FastBsonDocument doc1 = (FastBsonDocument) builder1.build();
+
+        FastBsonDocumentBuilder builder2 = new FastBsonDocumentBuilder();
+        builder2.putInt32("int", 1)
+                .putInt64("long", 2L)
+                .putDouble("double", 3.0)
+                .putBoolean("bool", true)
+                .putString("str", "test");
+        FastBsonDocument doc2 = (FastBsonDocument) builder2.build();
+
+        // Test all branches of equals
+        assertTrue(doc1.equals(doc2));
+        assertTrue(doc2.equals(doc1));
+    }
+
+    @Test
+    public void testEquals_WithComplexFields() {
+        // Test equals with complex fields to cover more branches
+        FastBsonDocumentBuilder nestedBuilder1 = new FastBsonDocumentBuilder();
+        nestedBuilder1.putInt32("value", 123);
+
+        FastBsonDocumentBuilder builder1 = new FastBsonDocumentBuilder();
+        builder1.putDocument("nested", nestedBuilder1.build());
+        FastBsonDocument doc1 = (FastBsonDocument) builder1.build();
+
+        FastBsonDocumentBuilder nestedBuilder2 = new FastBsonDocumentBuilder();
+        nestedBuilder2.putInt32("value", 123);
+
+        FastBsonDocumentBuilder builder2 = new FastBsonDocumentBuilder();
+        builder2.putDocument("nested", nestedBuilder2.build());
+        FastBsonDocument doc2 = (FastBsonDocument) builder2.build();
+
+        assertTrue(doc1.equals(doc2));
+    }
+
+    @Test
+    public void testEquals_WithNull() {
+        // Test Line 396: o == null branch
+        FastBsonDocumentBuilder builder = new FastBsonDocumentBuilder();
+        builder.putInt32("value", 42);
+        FastBsonDocument doc = (FastBsonDocument) builder.build();
+
+        assertFalse(doc.equals(null));
+    }
+
+    @Test
+    public void testEquals_WithDifferentClass() {
+        // Test Line 396: getClass() != o.getClass() branch
+        FastBsonDocumentBuilder builder = new FastBsonDocumentBuilder();
+        builder.putInt32("value", 42);
+        FastBsonDocument doc = (FastBsonDocument) builder.build();
+
+        assertFalse(doc.equals("not a document"));
+        assertFalse(doc.equals(Integer.valueOf(42)));
+    }
+
+    @Test
+    public void testEquals_WithDifferentFields() {
+        // Test equals chain - fields don't match
+        FastBsonDocumentBuilder builder1 = new FastBsonDocumentBuilder();
+        builder1.putInt32("value", 42);
+        FastBsonDocument doc1 = (FastBsonDocument) builder1.build();
+
+        FastBsonDocumentBuilder builder2 = new FastBsonDocumentBuilder();
+        builder2.putInt32("value", 99);  // Different value
+        FastBsonDocument doc2 = (FastBsonDocument) builder2.build();
+
+        assertFalse(doc1.equals(doc2));
+    }
+
+    @Test
+    public void testToJson_WithUnsupportedType() {
+        // Test Line 367: default case in appendValueAsJson
+        // Create a document and inject a field with unsupported BSON type using reflection
+        FastBsonDocumentBuilder builder = new FastBsonDocumentBuilder();
+        builder.putInt32("test", 1);
+        FastBsonDocument doc = (FastBsonDocument) builder.build();
+
+        try {
+            // Get private fields using reflection
+            java.lang.reflect.Field fieldNameToIdField = FastBsonDocument.class.getDeclaredField("fieldNameToId");
+            fieldNameToIdField.setAccessible(true);
+            java.lang.reflect.Field fieldTypesField = FastBsonDocument.class.getDeclaredField("fieldTypes");
+            fieldTypesField.setAccessible(true);
+            java.lang.reflect.Field complexFieldsField = FastBsonDocument.class.getDeclaredField("complexFields");
+            complexFieldsField.setAccessible(true);
+
+            // Get the internal maps
+            @SuppressWarnings("unchecked")
+            it.unimi.dsi.fastutil.objects.Object2IntMap<String> nameToId =
+                (it.unimi.dsi.fastutil.objects.Object2IntMap<String>) fieldNameToIdField.get(doc);
+            @SuppressWarnings("unchecked")
+            it.unimi.dsi.fastutil.ints.Int2ByteMap fieldTypes =
+                (it.unimi.dsi.fastutil.ints.Int2ByteMap) fieldTypesField.get(doc);
+            @SuppressWarnings("unchecked")
+            it.unimi.dsi.fastutil.ints.Int2ObjectMap<Object> complexFields =
+                (it.unimi.dsi.fastutil.ints.Int2ObjectMap<Object>) complexFieldsField.get(doc);
+
+            // Add a new field with unsupported type (REGEX = 0x0B)
+            int newFieldId = nameToId.size();
+            nameToId.put("unsupported", newFieldId);
+            fieldTypes.put(newFieldId, (byte) 0x0B);  // REGEX type - not in toJson switch
+            complexFields.put(newFieldId, "somevalue");
+
+            // Now toJson should hit the default case
+            String json = doc.toJson();
+            assertTrue(json.contains("<unsupported>"), "JSON should contain <unsupported> for unknown types");
+        } catch (Exception e) {
+            fail("Failed to inject unsupported type: " + e.getMessage());
+        }
+    }
 }

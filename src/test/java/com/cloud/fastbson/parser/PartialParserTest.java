@@ -688,6 +688,74 @@ public class PartialParserTest {
         assertEquals(2, firstRow.get(1));
     }
 
+    @Test
+    public void testConvertDocumentToMapWithNestedDocumentField() {
+        // Test to cover Line 207 true branch: nested document contains another nested document
+        // This ensures convertDocumentToMap recursively converts nested documents
+        BsonDocument deeplyNestedDoc = new BsonDocument()
+            .append("deepValue", new BsonString("deep"));
+
+        BsonDocument nestedDoc = new BsonDocument()
+            .append("level2", deeplyNestedDoc)  // This is a BsonDocument!
+            .append("primitiveField", new BsonInt32(42));
+
+        BsonDocument doc = new BsonDocument()
+            .append("level1", nestedDoc);
+
+        byte[] bsonData = serializeDocument(doc);
+        PartialParser parser = new PartialParser("level1");
+
+        // Act
+        Map<String, Object> result = parser.parse(bsonData);
+
+        // Assert
+        assertNotNull(result);
+        assertTrue(result.containsKey("level1"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> level1Map = (Map<String, Object>) result.get("level1");
+        assertTrue(level1Map.containsKey("level2"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> level2Map = (Map<String, Object>) level1Map.get("level2");
+        assertEquals("deep", level2Map.get("deepValue"));
+    }
+
+    @Test
+    public void testConvertDocumentToMapWithNestedArrayField() {
+        // Test to cover Line 209 true branch: nested document contains an array
+        // This ensures convertDocumentToMap recursively converts nested arrays
+        BsonArray nestedArray = new BsonArray(Arrays.asList(
+            new BsonInt32(1),
+            new BsonInt32(2),
+            new BsonInt32(3)
+        ));
+
+        BsonDocument nestedDoc = new BsonDocument()
+            .append("arrayField", nestedArray)  // This is a BsonArray!
+            .append("primitiveField", new BsonString("test"));
+
+        BsonDocument doc = new BsonDocument()
+            .append("outer", nestedDoc);
+
+        byte[] bsonData = serializeDocument(doc);
+        PartialParser parser = new PartialParser("outer");
+
+        // Act
+        Map<String, Object> result = parser.parse(bsonData);
+
+        // Assert
+        assertNotNull(result);
+        assertTrue(result.containsKey("outer"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> outerMap = (Map<String, Object>) result.get("outer");
+        assertTrue(outerMap.containsKey("arrayField"));
+        @SuppressWarnings("unchecked")
+        java.util.List<Object> arrayList = (java.util.List<Object>) outerMap.get("arrayField");
+        assertEquals(3, arrayList.size());
+        assertEquals(1, arrayList.get(0));
+        assertEquals(2, arrayList.get(1));
+        assertEquals(3, arrayList.get(2));
+    }
+
     // ==================== 辅助方法 ====================
 
     private byte[] serializeDocument(BsonDocument doc) {
