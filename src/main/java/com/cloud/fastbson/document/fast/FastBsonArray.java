@@ -104,8 +104,7 @@ public final class FastBsonArray implements BsonArray {
             throw new ClassCastException("Element is not Int32 at index " + index +
                 ", actual type: 0x" + Integer.toHexString(type & 0xFF));
         }
-        int localIndex = localIndices.getInt(index);
-        return intElements.getInt(localIndex);  // ✅ 零装箱
+        return intElements.getInt(localIndices.getInt(index));  // ✅ 零装箱
     }
 
     @Override
@@ -117,8 +116,7 @@ public final class FastBsonArray implements BsonArray {
         if (type != BsonType.INT32) {
             return defaultValue;
         }
-        int localIndex = localIndices.getInt(index);
-        return intElements.getInt(localIndex);
+        return intElements.getInt(localIndices.getInt(index));
     }
 
     @Override
@@ -131,8 +129,7 @@ public final class FastBsonArray implements BsonArray {
             throw new ClassCastException("Element is not Int64 at index " + index +
                 ", actual type: 0x" + Integer.toHexString(type & 0xFF));
         }
-        int localIndex = localIndices.getInt(index);
-        return longElements.getLong(localIndex);  // ✅ 零装箱
+        return longElements.getLong(localIndices.getInt(index));  // ✅ 零装箱
     }
 
     @Override
@@ -144,8 +141,7 @@ public final class FastBsonArray implements BsonArray {
         if (type != BsonType.INT64) {
             return defaultValue;
         }
-        int localIndex = localIndices.getInt(index);
-        return longElements.getLong(localIndex);
+        return longElements.getLong(localIndices.getInt(index));
     }
 
     @Override
@@ -158,8 +154,7 @@ public final class FastBsonArray implements BsonArray {
             throw new ClassCastException("Element is not Double at index " + index +
                 ", actual type: 0x" + Integer.toHexString(type & 0xFF));
         }
-        int localIndex = localIndices.getInt(index);
-        return doubleElements.getDouble(localIndex);  // ✅ 零装箱
+        return doubleElements.getDouble(localIndices.getInt(index));  // ✅ 零装箱
     }
 
     @Override
@@ -171,8 +166,7 @@ public final class FastBsonArray implements BsonArray {
         if (type != BsonType.DOUBLE) {
             return defaultValue;
         }
-        int localIndex = localIndices.getInt(index);
-        return doubleElements.getDouble(localIndex);
+        return doubleElements.getDouble(localIndices.getInt(index));
     }
 
     @Override
@@ -207,8 +201,7 @@ public final class FastBsonArray implements BsonArray {
         if (index < 0 || index >= types.size()) {
             return null;
         }
-        int localIndex = localIndices.getInt(index);
-        return stringElements.get(localIndex);
+        return stringElements.get(localIndices.getInt(index));
     }
 
     @Override
@@ -216,8 +209,7 @@ public final class FastBsonArray implements BsonArray {
         if (index < 0 || index >= types.size()) {
             return defaultValue;
         }
-        int localIndex = localIndices.getInt(index);
-        String value = stringElements.get(localIndex);
+        String value = stringElements.get(localIndices.getInt(index));
         return value != null ? value : defaultValue;
     }
 
@@ -226,8 +218,7 @@ public final class FastBsonArray implements BsonArray {
         if (index < 0 || index >= types.size()) {
             return null;
         }
-        int localIndex = localIndices.getInt(index);
-        return (BsonDocument) complexElements.get(localIndex);
+        return (BsonDocument) complexElements.get(localIndices.getInt(index));
     }
 
     @Override
@@ -235,8 +226,7 @@ public final class FastBsonArray implements BsonArray {
         if (index < 0 || index >= types.size()) {
             return null;
         }
-        int localIndex = localIndices.getInt(index);
-        return (BsonArray) complexElements.get(localIndex);
+        return (BsonArray) complexElements.get(localIndices.getInt(index));
     }
 
     // ==================== 通用访问 ====================
