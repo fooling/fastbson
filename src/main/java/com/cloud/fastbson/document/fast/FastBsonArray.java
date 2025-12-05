@@ -104,7 +104,7 @@ public final class FastBsonArray implements BsonArray {
             throw new ClassCastException("Element is not Int32 at index " + index +
                 ", actual type: 0x" + Integer.toHexString(type & 0xFF));
         }
-        return intElements.getInt(index);  // ✅ 零装箱
+        return intElements.getInt(localIndices.getInt(index));  // ✅ 零装箱
     }
 
     @Override
@@ -112,7 +112,11 @@ public final class FastBsonArray implements BsonArray {
         if (index < 0 || index >= types.size()) {
             return defaultValue;
         }
-        return intElements.getInt(index);
+        byte type = types.getByte(index);
+        if (type != BsonType.INT32) {
+            return defaultValue;
+        }
+        return intElements.getInt(localIndices.getInt(index));
     }
 
     @Override
@@ -125,7 +129,7 @@ public final class FastBsonArray implements BsonArray {
             throw new ClassCastException("Element is not Int64 at index " + index +
                 ", actual type: 0x" + Integer.toHexString(type & 0xFF));
         }
-        return longElements.getLong(index);  // ✅ 零装箱
+        return longElements.getLong(localIndices.getInt(index));  // ✅ 零装箱
     }
 
     @Override
@@ -133,7 +137,11 @@ public final class FastBsonArray implements BsonArray {
         if (index < 0 || index >= types.size()) {
             return defaultValue;
         }
-        return longElements.getLong(index);
+        byte type = types.getByte(index);
+        if (type != BsonType.INT64) {
+            return defaultValue;
+        }
+        return longElements.getLong(localIndices.getInt(index));
     }
 
     @Override
@@ -146,7 +154,7 @@ public final class FastBsonArray implements BsonArray {
             throw new ClassCastException("Element is not Double at index " + index +
                 ", actual type: 0x" + Integer.toHexString(type & 0xFF));
         }
-        return doubleElements.getDouble(index);  // ✅ 零装箱
+        return doubleElements.getDouble(localIndices.getInt(index));  // ✅ 零装箱
     }
 
     @Override
@@ -154,7 +162,11 @@ public final class FastBsonArray implements BsonArray {
         if (index < 0 || index >= types.size()) {
             return defaultValue;
         }
-        return doubleElements.getDouble(index);
+        byte type = types.getByte(index);
+        if (type != BsonType.DOUBLE) {
+            return defaultValue;
+        }
+        return doubleElements.getDouble(localIndices.getInt(index));
     }
 
     @Override
@@ -175,6 +187,10 @@ public final class FastBsonArray implements BsonArray {
         if (index < 0 || index >= types.size()) {
             return defaultValue;
         }
+        byte type = types.getByte(index);
+        if (type != BsonType.BOOLEAN) {
+            return defaultValue;
+        }
         return booleanElements.get(index);
     }
 
@@ -185,7 +201,7 @@ public final class FastBsonArray implements BsonArray {
         if (index < 0 || index >= types.size()) {
             return null;
         }
-        return stringElements.get(index);
+        return stringElements.get(localIndices.getInt(index));
     }
 
     @Override
@@ -193,7 +209,7 @@ public final class FastBsonArray implements BsonArray {
         if (index < 0 || index >= types.size()) {
             return defaultValue;
         }
-        String value = stringElements.get(index);
+        String value = stringElements.get(localIndices.getInt(index));
         return value != null ? value : defaultValue;
     }
 
@@ -202,7 +218,7 @@ public final class FastBsonArray implements BsonArray {
         if (index < 0 || index >= types.size()) {
             return null;
         }
-        return (BsonDocument) complexElements.get(index);
+        return (BsonDocument) complexElements.get(localIndices.getInt(index));
     }
 
     @Override
@@ -210,7 +226,7 @@ public final class FastBsonArray implements BsonArray {
         if (index < 0 || index >= types.size()) {
             return null;
         }
-        return (BsonArray) complexElements.get(index);
+        return (BsonArray) complexElements.get(localIndices.getInt(index));
     }
 
     // ==================== 通用访问 ====================
@@ -289,36 +305,38 @@ public final class FastBsonArray implements BsonArray {
     }
 
     private void appendValueAsJson(StringBuilder sb, int index, byte type) {
+        int localIndex = localIndices.getInt(index);  // 获取局部索引
+
         switch (type) {
             case BsonType.INT32:
-                sb.append(intElements.getInt(index));
+                sb.append(intElements.getInt(localIndex));
                 break;
             case BsonType.INT64:
-                sb.append(longElements.getLong(index));
+                sb.append(longElements.getLong(localIndex));
                 break;
             case BsonType.DOUBLE:
-                sb.append(doubleElements.getDouble(index));
+                sb.append(doubleElements.getDouble(localIndex));
                 break;
             case BsonType.BOOLEAN:
-                sb.append(booleanElements.get(index));
+                sb.append(booleanElements.get(index));  // Boolean uses global index
                 break;
             case BsonType.STRING:
-                sb.append('\"').append(escapeJson(stringElements.get(index))).append('\"');
+                sb.append('\"').append(escapeJson(stringElements.get(localIndex))).append('\"');
                 break;
             case BsonType.DOCUMENT:
-                sb.append(((BsonDocument) complexElements.get(index)).toJson());
+                sb.append(((BsonDocument) complexElements.get(localIndex)).toJson());
                 break;
             case BsonType.ARRAY:
-                sb.append(((BsonArray) complexElements.get(index)).toJson());
+                sb.append(((BsonArray) complexElements.get(localIndex)).toJson());
                 break;
             case BsonType.NULL:
                 sb.append("null");
                 break;
             case BsonType.OBJECT_ID:
-                sb.append('\"').append(complexElements.get(index)).append('\"');
+                sb.append('\"').append(complexElements.get(localIndex)).append('\"');
                 break;
             case BsonType.DATE_TIME:
-                sb.append(longElements.getLong(index));
+                sb.append(longElements.getLong(localIndex));
                 break;
             default:
                 sb.append("\"<unsupported>\"");

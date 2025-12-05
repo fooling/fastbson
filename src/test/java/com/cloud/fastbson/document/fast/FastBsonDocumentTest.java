@@ -504,4 +504,414 @@ public class FastBsonDocumentTest {
 
         assertEquals(doc1.hashCode(), doc2.hashCode());
     }
+
+    // ==================== 扩展测试 - 补充缺失分支 ====================
+
+    @Test
+    public void testEquals_DifferentFieldCount() {
+        FastBsonDocumentBuilder builder1 = new FastBsonDocumentBuilder();
+        builder1.putInt32("a", 1);
+        FastBsonDocument doc1 = (FastBsonDocument) builder1.build();
+
+        FastBsonDocumentBuilder builder2 = new FastBsonDocumentBuilder();
+        builder2.putInt32("a", 1).putInt32("b", 2);
+        FastBsonDocument doc2 = (FastBsonDocument) builder2.build();
+
+        assertNotEquals(doc1, doc2);
+    }
+
+    @Test
+    public void testEquals_DifferentIntFields() {
+        FastBsonDocumentBuilder builder1 = new FastBsonDocumentBuilder();
+        builder1.putInt32("a", 1);
+        FastBsonDocument doc1 = (FastBsonDocument) builder1.build();
+
+        FastBsonDocumentBuilder builder2 = new FastBsonDocumentBuilder();
+        builder2.putInt32("a", 2);
+        FastBsonDocument doc2 = (FastBsonDocument) builder2.build();
+
+        assertNotEquals(doc1, doc2);
+    }
+
+    @Test
+    public void testEquals_DifferentLongFields() {
+        FastBsonDocumentBuilder builder1 = new FastBsonDocumentBuilder();
+        builder1.putInt64("a", 1L);
+        FastBsonDocument doc1 = (FastBsonDocument) builder1.build();
+
+        FastBsonDocumentBuilder builder2 = new FastBsonDocumentBuilder();
+        builder2.putInt64("a", 2L);
+        FastBsonDocument doc2 = (FastBsonDocument) builder2.build();
+
+        assertNotEquals(doc1, doc2);
+    }
+
+    @Test
+    public void testEquals_DifferentDoubleFields() {
+        FastBsonDocumentBuilder builder1 = new FastBsonDocumentBuilder();
+        builder1.putDouble("a", 1.0);
+        FastBsonDocument doc1 = (FastBsonDocument) builder1.build();
+
+        FastBsonDocumentBuilder builder2 = new FastBsonDocumentBuilder();
+        builder2.putDouble("a", 2.0);
+        FastBsonDocument doc2 = (FastBsonDocument) builder2.build();
+
+        assertNotEquals(doc1, doc2);
+    }
+
+    @Test
+    public void testEquals_DifferentBooleanFields() {
+        FastBsonDocumentBuilder builder1 = new FastBsonDocumentBuilder();
+        builder1.putBoolean("a", true);
+        FastBsonDocument doc1 = (FastBsonDocument) builder1.build();
+
+        FastBsonDocumentBuilder builder2 = new FastBsonDocumentBuilder();
+        builder2.putBoolean("a", false);
+        FastBsonDocument doc2 = (FastBsonDocument) builder2.build();
+
+        assertNotEquals(doc1, doc2);
+    }
+
+    @Test
+    public void testEquals_DifferentStringFields() {
+        FastBsonDocumentBuilder builder1 = new FastBsonDocumentBuilder();
+        builder1.putString("a", "hello");
+        FastBsonDocument doc1 = (FastBsonDocument) builder1.build();
+
+        FastBsonDocumentBuilder builder2 = new FastBsonDocumentBuilder();
+        builder2.putString("a", "world");
+        FastBsonDocument doc2 = (FastBsonDocument) builder2.build();
+
+        assertNotEquals(doc1, doc2);
+    }
+
+    @Test
+    public void testEquals_DifferentComplexFields() {
+        FastBsonDocumentBuilder nestedBuilder1 = new FastBsonDocumentBuilder();
+        nestedBuilder1.putInt32("x", 1);
+        FastBsonDocument nested1 = (FastBsonDocument) nestedBuilder1.build();
+
+        FastBsonDocumentBuilder nestedBuilder2 = new FastBsonDocumentBuilder();
+        nestedBuilder2.putInt32("x", 2);
+        FastBsonDocument nested2 = (FastBsonDocument) nestedBuilder2.build();
+
+        FastBsonDocumentBuilder builder1 = new FastBsonDocumentBuilder();
+        builder1.putDocument("doc", nested1);
+        FastBsonDocument doc1 = (FastBsonDocument) builder1.build();
+
+        FastBsonDocumentBuilder builder2 = new FastBsonDocumentBuilder();
+        builder2.putDocument("doc", nested2);
+        FastBsonDocument doc2 = (FastBsonDocument) builder2.build();
+
+        assertNotEquals(doc1, doc2);
+    }
+
+    @Test
+    public void testToJson_WithNestedDocument() {
+        FastBsonDocumentBuilder nestedBuilder = new FastBsonDocumentBuilder();
+        nestedBuilder.putInt32("nested", 42);
+        FastBsonDocument nested = (FastBsonDocument) nestedBuilder.build();
+
+        FastBsonDocumentBuilder builder = new FastBsonDocumentBuilder();
+        builder.putDocument("doc", nested);
+        FastBsonDocument doc = (FastBsonDocument) builder.build();
+
+        String json = doc.toJson();
+        assertTrue(json.contains("\"doc\""));
+        assertTrue(json.contains("\"nested\""));
+        assertTrue(json.contains("42"));
+    }
+
+    @Test
+    public void testToJson_WithNestedArray() {
+        FastBsonArrayBuilder arrayBuilder = new FastBsonArrayBuilder();
+        arrayBuilder.addInt32(1).addInt32(2);
+        FastBsonArray array = (FastBsonArray) arrayBuilder.build();
+
+        FastBsonDocumentBuilder builder = new FastBsonDocumentBuilder();
+        builder.putArray("arr", array);
+        FastBsonDocument doc = (FastBsonDocument) builder.build();
+
+        String json = doc.toJson();
+        assertTrue(json.contains("\"arr\""));
+        assertTrue(json.contains("["));
+        assertTrue(json.contains("]"));
+    }
+
+    @Test
+    public void testToJson_WithObjectId() {
+        FastBsonDocumentBuilder builder = new FastBsonDocumentBuilder();
+        builder.putObjectId("id", "507f1f77bcf86cd799439011");
+        FastBsonDocument doc = (FastBsonDocument) builder.build();
+
+        String json = doc.toJson();
+        assertTrue(json.contains("\"id\""));
+        assertTrue(json.contains("507f1f77bcf86cd799439011"));
+    }
+
+    @Test
+    public void testToJson_WithDateTime() {
+        FastBsonDocumentBuilder builder = new FastBsonDocumentBuilder();
+        builder.putDateTime("timestamp", 1638360000000L);
+        FastBsonDocument doc = (FastBsonDocument) builder.build();
+
+        String json = doc.toJson();
+        assertTrue(json.contains("\"timestamp\""));
+        assertTrue(json.contains("1638360000000"));
+    }
+
+    @Test
+    public void testToJson_WithBoolean() {
+        FastBsonDocumentBuilder builder = new FastBsonDocumentBuilder();
+        builder.putBoolean("flag", true);
+        FastBsonDocument doc = (FastBsonDocument) builder.build();
+
+        String json = doc.toJson();
+        assertTrue(json.contains("\"flag\""));
+        assertTrue(json.contains("true"));
+    }
+
+    @Test
+    public void testToJson_WithDouble() {
+        FastBsonDocumentBuilder builder = new FastBsonDocumentBuilder();
+        builder.putDouble("value", 3.14);
+        FastBsonDocument doc = (FastBsonDocument) builder.build();
+
+        String json = doc.toJson();
+        assertTrue(json.contains("\"value\""));
+        assertTrue(json.contains("3.14"));
+    }
+
+    @Test
+    public void testToJson_WithLong() {
+        FastBsonDocumentBuilder builder = new FastBsonDocumentBuilder();
+        builder.putInt64("value", 9876543210L);
+        FastBsonDocument doc = (FastBsonDocument) builder.build();
+
+        String json = doc.toJson();
+        assertTrue(json.contains("\"value\""));
+        assertTrue(json.contains("9876543210"));
+    }
+
+    @Test
+    public void testEscapeJson_WithBackslash() {
+        FastBsonDocumentBuilder builder = new FastBsonDocumentBuilder();
+        builder.putString("path", "C:\\Users\\test");
+        FastBsonDocument doc = (FastBsonDocument) builder.build();
+
+        String json = doc.toJson();
+        assertTrue(json.contains("\\\\"));
+    }
+
+    @Test
+    public void testEscapeJson_WithQuotes() {
+        FastBsonDocumentBuilder builder = new FastBsonDocumentBuilder();
+        builder.putString("quote", "He said \"hello\"");
+        FastBsonDocument doc = (FastBsonDocument) builder.build();
+
+        String json = doc.toJson();
+        assertTrue(json.contains("\\\""));
+    }
+
+    @Test
+    public void testEscapeJson_WithNewline() {
+        FastBsonDocumentBuilder builder = new FastBsonDocumentBuilder();
+        builder.putString("multiline", "line1\nline2");
+        FastBsonDocument doc = (FastBsonDocument) builder.build();
+
+        String json = doc.toJson();
+        assertTrue(json.contains("\\n"));
+    }
+
+    @Test
+    public void testEscapeJson_WithCarriageReturn() {
+        FastBsonDocumentBuilder builder = new FastBsonDocumentBuilder();
+        builder.putString("text", "line1\rline2");
+        FastBsonDocument doc = (FastBsonDocument) builder.build();
+
+        String json = doc.toJson();
+        assertTrue(json.contains("\\r"));
+    }
+
+    @Test
+    public void testEscapeJson_WithTab() {
+        FastBsonDocumentBuilder builder = new FastBsonDocumentBuilder();
+        builder.putString("text", "col1\tcol2");
+        FastBsonDocument doc = (FastBsonDocument) builder.build();
+
+        String json = doc.toJson();
+        assertTrue(json.contains("\\t"));
+    }
+
+    @Test
+    public void testToBson_ThrowsUnsupportedOperation() {
+        FastBsonDocument doc = createEmptyDocument();
+        assertThrows(UnsupportedOperationException.class, () -> {
+            doc.toBson();
+        });
+    }
+
+    @Test
+    public void testGet_ReturnsNull_WhenFieldNotExists() {
+        FastBsonDocument doc = createEmptyDocument();
+        assertNull(doc.get("nonexistent"));
+    }
+
+    // ==================== 补充测试：覆盖剩余分支 ====================
+
+    @Test
+    public void testGetBoolean_WithDefault_BooleanFieldExistsFalse() {
+        // Test Line 219: booleanExists check when field exists with false value
+        FastBsonDocumentBuilder builder = new FastBsonDocumentBuilder();
+        builder.putBoolean("flag", false);
+        FastBsonDocument doc = (FastBsonDocument) builder.build();
+
+        // Field exists and value is false, should return false (not defaultValue)
+        assertFalse(doc.getBoolean("flag", true));
+    }
+
+    @Test
+    public void testGetString_WithDefault_NullValue() {
+        // Test Line 237: return value != null ? value : defaultValue
+        // Need to create a document with a null string field
+        FastBsonDocumentBuilder builder = new FastBsonDocumentBuilder();
+        builder.putString("nullField", null);
+        FastBsonDocument doc = (FastBsonDocument) builder.build();
+
+        // Field exists but value is null, should return defaultValue
+        assertEquals("default", doc.getString("nullField", "default"));
+    }
+
+    @Test
+    public void testToJson_WithNullString() {
+        // Test Line 372: if (str == null) in escapeJson
+        FastBsonDocumentBuilder builder = new FastBsonDocumentBuilder();
+        builder.putString("nullField", null);
+        FastBsonDocument doc = (FastBsonDocument) builder.build();
+
+        // toJson should handle null string gracefully
+        String json = doc.toJson();
+        assertTrue(json.contains("\"nullField\":\"\""));
+    }
+
+    @Test
+    public void testEquals_WithAllFieldTypesMatching() {
+        // Test Line 396 equals branches: comprehensive test with all field types
+        FastBsonDocumentBuilder builder1 = new FastBsonDocumentBuilder();
+        builder1.putInt32("int", 1)
+                .putInt64("long", 2L)
+                .putDouble("double", 3.0)
+                .putBoolean("bool", true)
+                .putString("str", "test");
+        FastBsonDocument doc1 = (FastBsonDocument) builder1.build();
+
+        FastBsonDocumentBuilder builder2 = new FastBsonDocumentBuilder();
+        builder2.putInt32("int", 1)
+                .putInt64("long", 2L)
+                .putDouble("double", 3.0)
+                .putBoolean("bool", true)
+                .putString("str", "test");
+        FastBsonDocument doc2 = (FastBsonDocument) builder2.build();
+
+        // Test all branches of equals
+        assertTrue(doc1.equals(doc2));
+        assertTrue(doc2.equals(doc1));
+    }
+
+    @Test
+    public void testEquals_WithComplexFields() {
+        // Test equals with complex fields to cover more branches
+        FastBsonDocumentBuilder nestedBuilder1 = new FastBsonDocumentBuilder();
+        nestedBuilder1.putInt32("value", 123);
+
+        FastBsonDocumentBuilder builder1 = new FastBsonDocumentBuilder();
+        builder1.putDocument("nested", nestedBuilder1.build());
+        FastBsonDocument doc1 = (FastBsonDocument) builder1.build();
+
+        FastBsonDocumentBuilder nestedBuilder2 = new FastBsonDocumentBuilder();
+        nestedBuilder2.putInt32("value", 123);
+
+        FastBsonDocumentBuilder builder2 = new FastBsonDocumentBuilder();
+        builder2.putDocument("nested", nestedBuilder2.build());
+        FastBsonDocument doc2 = (FastBsonDocument) builder2.build();
+
+        assertTrue(doc1.equals(doc2));
+    }
+
+    @Test
+    public void testEquals_WithNull() {
+        // Test Line 396: o == null branch
+        FastBsonDocumentBuilder builder = new FastBsonDocumentBuilder();
+        builder.putInt32("value", 42);
+        FastBsonDocument doc = (FastBsonDocument) builder.build();
+
+        assertFalse(doc.equals(null));
+    }
+
+    @Test
+    public void testEquals_WithDifferentClass() {
+        // Test Line 396: getClass() != o.getClass() branch
+        FastBsonDocumentBuilder builder = new FastBsonDocumentBuilder();
+        builder.putInt32("value", 42);
+        FastBsonDocument doc = (FastBsonDocument) builder.build();
+
+        assertFalse(doc.equals("not a document"));
+        assertFalse(doc.equals(Integer.valueOf(42)));
+    }
+
+    @Test
+    public void testEquals_WithDifferentFields() {
+        // Test equals chain - fields don't match
+        FastBsonDocumentBuilder builder1 = new FastBsonDocumentBuilder();
+        builder1.putInt32("value", 42);
+        FastBsonDocument doc1 = (FastBsonDocument) builder1.build();
+
+        FastBsonDocumentBuilder builder2 = new FastBsonDocumentBuilder();
+        builder2.putInt32("value", 99);  // Different value
+        FastBsonDocument doc2 = (FastBsonDocument) builder2.build();
+
+        assertFalse(doc1.equals(doc2));
+    }
+
+    @Test
+    public void testToJson_WithUnsupportedType() {
+        // Test Line 367: default case in appendValueAsJson
+        // Create a document and inject a field with unsupported BSON type using reflection
+        FastBsonDocumentBuilder builder = new FastBsonDocumentBuilder();
+        builder.putInt32("test", 1);
+        FastBsonDocument doc = (FastBsonDocument) builder.build();
+
+        try {
+            // Get private fields using reflection
+            java.lang.reflect.Field fieldNameToIdField = FastBsonDocument.class.getDeclaredField("fieldNameToId");
+            fieldNameToIdField.setAccessible(true);
+            java.lang.reflect.Field fieldTypesField = FastBsonDocument.class.getDeclaredField("fieldTypes");
+            fieldTypesField.setAccessible(true);
+            java.lang.reflect.Field complexFieldsField = FastBsonDocument.class.getDeclaredField("complexFields");
+            complexFieldsField.setAccessible(true);
+
+            // Get the internal maps
+            @SuppressWarnings("unchecked")
+            it.unimi.dsi.fastutil.objects.Object2IntMap<String> nameToId =
+                (it.unimi.dsi.fastutil.objects.Object2IntMap<String>) fieldNameToIdField.get(doc);
+            @SuppressWarnings("unchecked")
+            it.unimi.dsi.fastutil.ints.Int2ByteMap fieldTypes =
+                (it.unimi.dsi.fastutil.ints.Int2ByteMap) fieldTypesField.get(doc);
+            @SuppressWarnings("unchecked")
+            it.unimi.dsi.fastutil.ints.Int2ObjectMap<Object> complexFields =
+                (it.unimi.dsi.fastutil.ints.Int2ObjectMap<Object>) complexFieldsField.get(doc);
+
+            // Add a new field with unsupported type (REGEX = 0x0B)
+            int newFieldId = nameToId.size();
+            nameToId.put("unsupported", newFieldId);
+            fieldTypes.put(newFieldId, (byte) 0x0B);  // REGEX type - not in toJson switch
+            complexFields.put(newFieldId, "somevalue");
+
+            // Now toJson should hit the default case
+            String json = doc.toJson();
+            assertTrue(json.contains("<unsupported>"), "JSON should contain <unsupported> for unknown types");
+        } catch (Exception e) {
+            fail("Failed to inject unsupported type: " + e.getMessage());
+        }
+    }
 }

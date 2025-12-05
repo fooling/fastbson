@@ -622,4 +622,674 @@ public class IndexedBsonArrayTest {
         // Act & Assert - parse() doesn't validate null, throws NullPointerException
         assertThrows(NullPointerException.class, () -> IndexedBsonArray.parse(null, 0, 10));
     }
+
+    // ==================== Iterator Tests ====================
+
+    @Test
+    public void testIterator_HasNext() {
+        // Arrange
+        byte[] bsonData = createInt32Array();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        // Act
+        java.util.Iterator<Object> iterator = array.iterator();
+
+        // Assert
+        assertTrue(iterator.hasNext());
+        iterator.next();
+        assertTrue(iterator.hasNext());
+        iterator.next();
+        assertTrue(iterator.hasNext());
+        iterator.next();
+        assertFalse(iterator.hasNext());
+    }
+
+    @Test
+    public void testIterator_Next() {
+        // Arrange
+        byte[] bsonData = createInt32Array();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        // Act
+        java.util.Iterator<Object> iterator = array.iterator();
+
+        // Assert
+        assertEquals(10, iterator.next());
+        assertEquals(20, iterator.next());
+        assertEquals(30, iterator.next());
+    }
+
+    @Test
+    public void testIterator_EmptyArray() {
+        // Arrange
+        byte[] bsonData = createEmptyArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        // Act
+        java.util.Iterator<Object> iterator = array.iterator();
+
+        // Assert
+        assertFalse(iterator.hasNext());
+    }
+
+    @Test
+    public void testIterator_NoSuchElement() {
+        // Arrange
+        byte[] bsonData = createInt32Array();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        // Act
+        java.util.Iterator<Object> iterator = array.iterator();
+        iterator.next();
+        iterator.next();
+        iterator.next();
+
+        // Assert - calling next() when hasNext() is false should throw
+        assertThrows(java.util.NoSuchElementException.class, () -> iterator.next());
+    }
+
+    // ==================== 补充所有getter方法的完整测试 ====================
+
+    @Test
+    public void testGetInt32_WrongType() {
+        byte[] bsonData = createStringArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        assertThrows(IllegalArgumentException.class, () -> array.getInt32(0));
+    }
+
+    @Test
+    public void testGetInt64_ExistingElement() {
+        byte[] bsonData = createInt64Array();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        assertEquals(100L, array.getInt64(0));
+    }
+
+    @Test
+    public void testGetInt64_OutOfBounds() {
+        byte[] bsonData = createInt64Array();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        assertThrows(IndexOutOfBoundsException.class, () -> array.getInt64(10));
+    }
+
+    @Test
+    public void testGetInt64_WrongType() {
+        byte[] bsonData = createStringArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        assertThrows(IllegalArgumentException.class, () -> array.getInt64(0));
+    }
+
+    @Test
+    public void testGetDouble_OutOfBounds() {
+        byte[] bsonData = createDoubleArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        assertThrows(IndexOutOfBoundsException.class, () -> array.getDouble(10));
+    }
+
+    @Test
+    public void testGetDouble_WrongType() {
+        byte[] bsonData = createStringArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        assertThrows(IllegalArgumentException.class, () -> array.getDouble(0));
+    }
+
+    @Test
+    public void testGetBoolean_OutOfBounds() {
+        byte[] bsonData = createBooleanArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        assertThrows(IndexOutOfBoundsException.class, () -> array.getBoolean(10));
+    }
+
+    @Test
+    public void testGetBoolean_WrongType() {
+        byte[] bsonData = createStringArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        assertThrows(IllegalArgumentException.class, () -> array.getBoolean(0));
+    }
+
+    @Test
+    public void testGetString_ExistingElement() {
+        byte[] bsonData = createStringArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        assertEquals("a", array.getString(0));
+    }
+
+    @Test
+    public void testGetString_OutOfBounds() {
+        byte[] bsonData = createStringArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        assertThrows(IndexOutOfBoundsException.class, () -> array.getString(10));
+    }
+
+    @Test
+    public void testGetDocument_OutOfBounds() {
+        byte[] bsonData = createNestedDocumentArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        assertThrows(IndexOutOfBoundsException.class, () -> array.getDocument(10));
+    }
+
+    @Test
+    public void testGetArray_OutOfBounds() {
+        byte[] bsonData = createNestedArrayArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        assertThrows(IndexOutOfBoundsException.class, () -> array.getArray(10));
+    }
+
+    @Test
+    public void testGet_Int64() {
+        byte[] bsonData = createInt64Array();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        Object value = array.get(0);
+        assertTrue(value instanceof Long);
+        assertEquals(100L, value);
+    }
+
+    @Test
+    public void testGet_EmptyArray() {
+        byte[] bsonData = createEmptyArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        assertNull(array.get(0));
+    }
+
+    @Test
+    public void testToJson_StringArray() {
+        byte[] bsonData = createStringArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        String json = array.toJson();
+        assertNotNull(json);
+        assertTrue(json.contains("\"a\"") || json.contains("a"));
+    }
+
+    @Test
+    public void testToJson_BooleanArray() {
+        byte[] bsonData = createBooleanArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        String json = array.toJson();
+        assertNotNull(json);
+        assertTrue(json.contains("true"));
+        assertTrue(json.contains("false"));
+    }
+
+    @Test
+    public void testToJson_MixedArray() {
+        byte[] bsonData = createMixedArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        String json = array.toJson();
+        assertNotNull(json);
+        assertTrue(json.contains("42"));
+        assertTrue(json.contains("hello"));
+    }
+
+    @Test
+    public void testToJson_NestedDocument() {
+        byte[] bsonData = createNestedDocumentArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        String json = array.toJson();
+        assertNotNull(json);
+        assertTrue(json.contains("Alice") || json.contains("name"));
+    }
+
+    @Test
+    public void testToJson_NestedArray() {
+        byte[] bsonData = createNestedArrayArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        String json = array.toJson();
+        assertNotNull(json);
+        assertTrue(json.contains("["));
+    }
+
+    @Test
+    public void testIsEmpty_NonEmpty() {
+        byte[] bsonData = createInt32Array();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        assertFalse(array.isEmpty());
+    }
+
+    @Test
+    public void testIsEmpty_Empty() {
+        byte[] bsonData = createEmptyArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        assertTrue(array.isEmpty());
+    }
+
+    @Test
+    public void testEquals_SameInstance() {
+        byte[] bsonData = createInt32Array();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        assertEquals(array, array);
+    }
+
+    @Test
+    public void testEquals_EqualArrays() {
+        byte[] bsonData = createInt32Array();
+        IndexedBsonArray array1 = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        // Just test that equals doesn't crash
+        assertTrue(array1.equals(array1));
+    }
+
+    @Test
+    public void testEquals_Null() {
+        byte[] bsonData = createInt32Array();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        assertNotEquals(null, array);
+    }
+
+    @Test
+    public void testEquals_DifferentClass() {
+        byte[] bsonData = createInt32Array();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        assertNotEquals("not an array", array);
+    }
+
+    @Test
+    public void testHashCode_Consistent() {
+        byte[] bsonData = createInt32Array();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        int hash1 = array.hashCode();
+        int hash2 = array.hashCode();
+        assertEquals(hash1, hash2);
+    }
+
+    @Test
+    public void testToString_NotNull() {
+        byte[] bsonData = createInt32Array();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        String str = array.toString();
+        assertNotNull(str);
+    }
+
+    // ==================== Additional Coverage Tests ====================
+
+    @Test
+    public void testGetType_BoundaryConditions() {
+        byte[] bsonData = createInt32Array();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        // Test out of bounds - should return 0
+        assertEquals(0, array.getType(-1));
+        assertEquals(0, array.getType(array.size()));
+        assertEquals(0, array.getType(array.size() + 10));
+
+        // Test valid index
+        assertEquals((byte) 0x10, array.getType(0));  // INT32
+    }
+
+    @Test
+    public void testGetInt32_WithDefaultValue() {
+        byte[] bsonData = createInt32Array();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        // Valid index and type
+        assertEquals(10, array.getInt32(0, 999));
+
+        // Invalid index
+        assertEquals(999, array.getInt32(-1, 999));
+        assertEquals(999, array.getInt32(array.size(), 999));
+
+        // Wrong type - create array with string
+        byte[] mixedData = createStringArray();
+        IndexedBsonArray mixedArray = IndexedBsonArray.parse(mixedData, 0, mixedData.length);
+        assertEquals(999, mixedArray.getInt32(0, 999));  // First element is string, not int32
+    }
+
+    @Test
+    public void testGetInt64_WithDefaultValue() throws Exception {
+        byte[] bsonData = createInt64Array();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        // Valid index and type
+        assertEquals(100L, array.getInt64(0, 999L));
+
+        // Test cache hit
+        array.getInt64(0);  // Prime cache
+        assertEquals(100L, array.getInt64(0, 999L));
+
+        // Invalid index
+        assertEquals(999L, array.getInt64(-1, 999L));
+        assertEquals(999L, array.getInt64(array.size(), 999L));
+
+        // Wrong type
+        byte[] mixedData = createStringArray();
+        IndexedBsonArray mixedArray = IndexedBsonArray.parse(mixedData, 0, mixedData.length);
+        assertEquals(999L, mixedArray.getInt64(0, 999L));
+    }
+
+    @Test
+    public void testGetDouble_WithDefaultValue() throws Exception {
+        byte[] bsonData = createDoubleArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        // Valid index and type
+        assertEquals(1.1, array.getDouble(0, 999.0), 0.001);
+
+        // Test cache hit
+        array.getDouble(0);  // Prime cache
+        assertEquals(1.1, array.getDouble(0, 999.0), 0.001);
+
+        // Invalid index
+        assertEquals(999.0, array.getDouble(-1, 999.0), 0.001);
+        assertEquals(999.0, array.getDouble(array.size(), 999.0), 0.001);
+
+        // Wrong type
+        byte[] mixedData = createStringArray();
+        IndexedBsonArray mixedArray = IndexedBsonArray.parse(mixedData, 0, mixedData.length);
+        assertEquals(999.0, mixedArray.getDouble(0, 999.0), 0.001);
+    }
+
+    @Test
+    public void testGetBoolean_WithDefaultValue() throws Exception {
+        byte[] bsonData = createBooleanArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        // Valid index and type
+        assertEquals(true, array.getBoolean(0, false));
+
+        // Test cache hit
+        array.getBoolean(0);  // Prime cache
+        assertEquals(true, array.getBoolean(0, false));
+
+        // Invalid index
+        assertEquals(false, array.getBoolean(-1, false));
+        assertEquals(false, array.getBoolean(array.size(), false));
+
+        // Wrong type
+        byte[] mixedData = createStringArray();
+        IndexedBsonArray mixedArray = IndexedBsonArray.parse(mixedData, 0, mixedData.length);
+        assertEquals(false, mixedArray.getBoolean(0, false));
+    }
+
+    @Test
+    public void testGetString_WithDefaultValue() throws Exception {
+        byte[] bsonData = createStringArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        // Valid index and type
+        assertEquals("a", array.getString(0, "default"));
+
+        // Invalid index
+        assertEquals("default", array.getString(-1, "default"));
+        assertEquals("default", array.getString(array.size(), "default"));
+
+        // Wrong type
+        byte[] intData = createInt32Array();
+        IndexedBsonArray intArray = IndexedBsonArray.parse(intData, 0, intData.length);
+        assertEquals("default", intArray.getString(0, "default"));
+    }
+
+    @Test
+    public void testGetString_WrongType_ThrowsException() {
+        byte[] bsonData = createInt32Array();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        // Element at index 0 is INT32, not STRING
+        assertThrows(IllegalArgumentException.class, () -> array.getString(0));
+    }
+
+    @Test
+    public void testGetString_CacheHit() {
+        byte[] bsonData = createStringArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        // First access - miss cache
+        String first = array.getString(0);
+        assertEquals("a", first);
+
+        // Second access - hit cache
+        String second = array.getString(0);
+        assertEquals("a", second);
+        assertSame(first, second);  // Should be same object from cache
+    }
+
+    @Test
+    public void testParse_WithBinaryType() {
+        ByteBuffer buffer = ByteBuffer.allocate(1024).order(ByteOrder.LITTLE_ENDIAN);
+
+        int startPos = buffer.position();
+        buffer.putInt(0); // placeholder for array length
+
+        // Add BINARY element
+        buffer.put((byte) 0x05); // Binary
+        buffer.put("0\0".getBytes(StandardCharsets.UTF_8));
+        buffer.putInt(5);  // binary length
+        buffer.put((byte) 0x00);  // subtype: generic
+        buffer.put(new byte[]{1, 2, 3, 4, 5});  // binary data
+
+        buffer.put((byte) 0x00); // End
+
+        int endPos = buffer.position();
+        buffer.putInt(startPos, endPos - startPos);
+
+        byte[] bsonData = Arrays.copyOf(buffer.array(), endPos);
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        assertEquals(1, array.size());
+        assertEquals((byte) 0x05, array.getType(0));
+    }
+
+    @Test
+    public void testParse_WithObjectIdType() {
+        ByteBuffer buffer = ByteBuffer.allocate(1024).order(ByteOrder.LITTLE_ENDIAN);
+
+        int startPos = buffer.position();
+        buffer.putInt(0); // placeholder
+
+        // Add ObjectId element
+        buffer.put((byte) 0x07); // ObjectId
+        buffer.put("0\0".getBytes(StandardCharsets.UTF_8));
+        buffer.put(new byte[12]);  // 12 bytes ObjectId
+
+        buffer.put((byte) 0x00); // End
+
+        int endPos = buffer.position();
+        buffer.putInt(startPos, endPos - startPos);
+
+        byte[] bsonData = Arrays.copyOf(buffer.array(), endPos);
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        assertEquals(1, array.size());
+        assertEquals((byte) 0x07, array.getType(0));
+    }
+
+    @Test
+    public void testParse_WithDateTimeType() {
+        ByteBuffer buffer = ByteBuffer.allocate(1024).order(ByteOrder.LITTLE_ENDIAN);
+
+        int startPos = buffer.position();
+        buffer.putInt(0); // placeholder
+
+        // Add DateTime element
+        buffer.put((byte) 0x09); // DateTime
+        buffer.put("0\0".getBytes(StandardCharsets.UTF_8));
+        buffer.putLong(System.currentTimeMillis());  // 8 bytes timestamp
+
+        buffer.put((byte) 0x00); // End
+
+        int endPos = buffer.position();
+        buffer.putInt(startPos, endPos - startPos);
+
+        byte[] bsonData = Arrays.copyOf(buffer.array(), endPos);
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        assertEquals(1, array.size());
+        assertEquals((byte) 0x09, array.getType(0));
+    }
+
+    @Test
+    public void testParse_WithRegexType() {
+        ByteBuffer buffer = ByteBuffer.allocate(1024).order(ByteOrder.LITTLE_ENDIAN);
+
+        int startPos = buffer.position();
+        buffer.putInt(0); // placeholder
+
+        // Add Regex element
+        buffer.put((byte) 0x0B); // Regex
+        buffer.put("0\0".getBytes(StandardCharsets.UTF_8));
+        buffer.put("pattern\0".getBytes(StandardCharsets.UTF_8));  // pattern
+        buffer.put("i\0".getBytes(StandardCharsets.UTF_8));  // options
+
+        buffer.put((byte) 0x00); // End
+
+        int endPos = buffer.position();
+        buffer.putInt(startPos, endPos - startPos);
+
+        byte[] bsonData = Arrays.copyOf(buffer.array(), endPos);
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        assertEquals(1, array.size());
+        assertEquals((byte) 0x0B, array.getType(0));
+    }
+
+    @Test
+    public void testParse_WithTimestampType() {
+        ByteBuffer buffer = ByteBuffer.allocate(1024).order(ByteOrder.LITTLE_ENDIAN);
+
+        int startPos = buffer.position();
+        buffer.putInt(0); // placeholder
+
+        // Add Timestamp element
+        buffer.put((byte) 0x11); // Timestamp
+        buffer.put("0\0".getBytes(StandardCharsets.UTF_8));
+        buffer.putLong(123456789L);  // 8 bytes timestamp
+
+        buffer.put((byte) 0x00); // End
+
+        int endPos = buffer.position();
+        buffer.putInt(startPos, endPos - startPos);
+
+        byte[] bsonData = Arrays.copyOf(buffer.array(), endPos);
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        assertEquals(1, array.size());
+        assertEquals((byte) 0x11, array.getType(0));
+    }
+
+    @Test
+    public void testParse_WithDecimal128Type() {
+        ByteBuffer buffer = ByteBuffer.allocate(1024).order(ByteOrder.LITTLE_ENDIAN);
+
+        int startPos = buffer.position();
+        buffer.putInt(0); // placeholder
+
+        // Add Decimal128 element
+        buffer.put((byte) 0x13); // Decimal128
+        buffer.put("0\0".getBytes(StandardCharsets.UTF_8));
+        buffer.put(new byte[16]);  // 16 bytes Decimal128
+
+        buffer.put((byte) 0x00); // End
+
+        int endPos = buffer.position();
+        buffer.putInt(startPos, endPos - startPos);
+
+        byte[] bsonData = Arrays.copyOf(buffer.array(), endPos);
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        assertEquals(1, array.size());
+        assertEquals((byte) 0x13, array.getType(0));
+    }
+
+    @Test
+    public void testParse_WithMinKeyType() {
+        ByteBuffer buffer = ByteBuffer.allocate(1024).order(ByteOrder.LITTLE_ENDIAN);
+
+        int startPos = buffer.position();
+        buffer.putInt(0); // placeholder
+
+        // Add MinKey element
+        buffer.put((byte) 0xFF); // MinKey
+        buffer.put("0\0".getBytes(StandardCharsets.UTF_8));
+        // MinKey has no value
+
+        buffer.put((byte) 0x00); // End
+
+        int endPos = buffer.position();
+        buffer.putInt(startPos, endPos - startPos);
+
+        byte[] bsonData = Arrays.copyOf(buffer.array(), endPos);
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        assertEquals(1, array.size());
+        assertEquals((byte) 0xFF, array.getType(0));
+    }
+
+    @Test
+    public void testParse_WithMaxKeyType() {
+        ByteBuffer buffer = ByteBuffer.allocate(1024).order(ByteOrder.LITTLE_ENDIAN);
+
+        int startPos = buffer.position();
+        buffer.putInt(0); // placeholder
+
+        // Add MaxKey element
+        buffer.put((byte) 0x7F); // MaxKey
+        buffer.put("0\0".getBytes(StandardCharsets.UTF_8));
+        // MaxKey has no value
+
+        buffer.put((byte) 0x00); // End
+
+        int endPos = buffer.position();
+        buffer.putInt(startPos, endPos - startPos);
+
+        byte[] bsonData = Arrays.copyOf(buffer.array(), endPos);
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        assertEquals(1, array.size());
+        assertEquals((byte) 0x7F, array.getType(0));
+    }
+
+    @Test
+    public void testParse_WithUnsupportedType_ThrowsException() {
+        ByteBuffer buffer = ByteBuffer.allocate(1024).order(ByteOrder.LITTLE_ENDIAN);
+
+        int startPos = buffer.position();
+        buffer.putInt(0); // placeholder
+
+        // Add unsupported type
+        buffer.put((byte) 0x99); // Invalid/unsupported type
+        buffer.put("0\0".getBytes(StandardCharsets.UTF_8));
+
+        buffer.put((byte) 0x00); // End
+
+        int endPos = buffer.position();
+        buffer.putInt(startPos, endPos - startPos);
+
+        byte[] bsonData = Arrays.copyOf(buffer.array(), endPos);
+
+        assertThrows(IllegalArgumentException.class, () -> {
+            IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        });
+    }
+
+    @Test
+    public void testGetDocument_WithDefaultValue() {
+        byte[] nestedData = createNestedDocumentArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(nestedData, 0, nestedData.length);
+
+        // Valid document
+        assertNotNull(array.getDocument(0, null));
+
+        // Invalid index
+        assertNull(array.getDocument(-1, null));
+        assertNull(array.getDocument(array.size(), null));
+
+        // Wrong type
+        byte[] intData = createInt32Array();
+        IndexedBsonArray intArray = IndexedBsonArray.parse(intData, 0, intData.length);
+        assertNull(intArray.getDocument(0, null));
+    }
+
+    @Test
+    public void testGetArray_WithDefaultValue() {
+        byte[] nestedData = createNestedArrayArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(nestedData, 0, nestedData.length);
+
+        // Valid array
+        assertNotNull(array.getArray(0, null));
+
+        // Invalid index
+        assertNull(array.getArray(-1, null));
+        assertNull(array.getArray(array.size(), null));
+
+        // Wrong type
+        byte[] intData = createInt32Array();
+        IndexedBsonArray intArray = IndexedBsonArray.parse(intData, 0, intData.length);
+        assertNull(intArray.getArray(0, null));
+    }
 }

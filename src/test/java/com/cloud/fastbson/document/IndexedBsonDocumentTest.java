@@ -639,4 +639,306 @@ public class IndexedBsonDocumentTest {
         // Assert
         assertNotNull(doc);
     }
+
+    // ==================== 补充所有getter方法的完整测试 ====================
+
+    @Test
+    public void testGetInt32_WithDefault_FieldExists() {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+        assertEquals(30, doc.getInt32("age", 999));
+    }
+
+    @Test
+    public void testGetInt32_WithDefault_FieldNotExists() {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+        assertEquals(999, doc.getInt32("nonexistent", 999));
+    }
+
+    @Test
+    public void testGetInt64_NonexistentField() {
+        byte[] bsonData = createAllTypesBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+        assertThrows(NullPointerException.class, () -> doc.getInt64("nonexistent"));
+    }
+
+    @Test
+    public void testGetInt64_WithDefault_FieldExists() {
+        byte[] bsonData = createAllTypesBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+        assertEquals(9876543210L, doc.getInt64("int64Field", 999L));
+    }
+
+    @Test
+    public void testGetInt64_WithDefault_FieldNotExists() {
+        byte[] bsonData = createAllTypesBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+        assertEquals(999L, doc.getInt64("nonexistent", 999L));
+    }
+
+    @Test
+    public void testGetDouble_NonexistentField() {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+        assertThrows(NullPointerException.class, () -> doc.getDouble("nonexistent"));
+    }
+
+    @Test
+    public void testGetDouble_WithDefault_FieldExists() {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+        assertEquals(95.5, doc.getDouble("score", 9.99), 0.0001);
+    }
+
+    @Test
+    public void testGetDouble_WithDefault_FieldNotExists() {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+        assertEquals(9.99, doc.getDouble("nonexistent", 9.99), 0.0001);
+    }
+
+    @Test
+    public void testGetBoolean_NonexistentField() {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+        assertThrows(NullPointerException.class, () -> doc.getBoolean("nonexistent"));
+    }
+
+    @Test
+    public void testGetBoolean_WithDefault_FieldExists() {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+        assertTrue(doc.getBoolean("active", false));
+    }
+
+    @Test
+    public void testGetBoolean_WithDefault_FieldNotExists() {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+        assertTrue(doc.getBoolean("nonexistent", true));
+    }
+
+    @Test
+    public void testGetString_NonexistentField() {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+        assertThrows(NullPointerException.class, () -> doc.getString("nonexistent"));
+    }
+
+    @Test
+    public void testGetString_WithDefault_FieldExists() {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+        assertEquals("Alice", doc.getString("name", "default"));
+    }
+
+    @Test
+    public void testGetString_WithDefault_FieldNotExists() {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+        assertEquals("default", doc.getString("nonexistent", "default"));
+    }
+
+    @Test
+    public void testGetDateTime_NonexistentField() {
+        byte[] bsonData = createAllTypesBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+        assertThrows(NullPointerException.class, () -> doc.getDateTime("nonexistent"));
+    }
+
+    @Test
+    public void testGetDateTime_WithDefault_FieldExists() {
+        byte[] bsonData = createAllTypesBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+        assertEquals(1609459200000L, doc.getDateTime("dateField", 0L));
+    }
+
+    @Test
+    public void testGetDateTime_WithDefault_FieldNotExists() {
+        byte[] bsonData = createAllTypesBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+        assertEquals(999L, doc.getDateTime("nonexistent", 999L));
+    }
+
+    @Test
+    public void testGetObjectId_NonexistentField() {
+        byte[] bsonData = createAllTypesBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+        assertThrows(NullPointerException.class, () -> doc.getObjectId("nonexistent"));
+    }
+
+    @Test
+    public void testGetDocument_NonexistentField() {
+        byte[] bsonData = createNestedBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+        assertThrows(NullPointerException.class, () -> doc.getDocument("nonexistent"));
+    }
+
+    @Test
+    public void testGetArray_NonexistentField() {
+        byte[] bsonData = createArrayBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+        assertThrows(NullPointerException.class, () -> doc.getArray("nonexistent"));
+    }
+
+    @Test
+    public void testGetBinary_NonexistentField() {
+        byte[] bsonData = createAllTypesBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+        assertThrows(NullPointerException.class, () -> doc.getBinary("nonexistent"));
+    }
+
+    @Test
+    public void testContains_ExistingField() {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+        assertTrue(doc.contains("name"));
+    }
+
+    @Test
+    public void testContains_NonexistentField() {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+        assertFalse(doc.contains("nonexistent"));
+    }
+
+    @Test
+    public void testIsNull_NullField() {
+        byte[] bsonData = createAllTypesBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+        assertTrue(doc.isNull("nullField"));
+    }
+
+    @Test
+    public void testIsNull_NonNullField() {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+        assertFalse(doc.isNull("name"));
+    }
+
+    @Test
+    public void testIsNull_NonexistentField() {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+        assertFalse(doc.isNull("nonexistent"));
+    }
+
+    @Test
+    public void testGetType_ExistingField_Int32() {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+        assertEquals(0x10, doc.getType("age"));
+    }
+
+    @Test
+    public void testGetType_ExistingField_String() {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+        assertEquals(0x02, doc.getType("name"));
+    }
+
+    @Test
+    public void testGetType_NonexistentField() {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+        assertEquals(0, doc.getType("nonexistent"));
+    }
+
+    @Test
+    public void testFieldNames() {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+        java.util.Set<String> names = doc.fieldNames();
+        assertNotNull(names);
+        assertTrue(names.contains("name"));
+        assertTrue(names.contains("age"));
+        assertTrue(names.contains("score"));
+        assertTrue(names.contains("active"));
+        assertEquals(4, names.size());
+    }
+
+    @Test
+    public void testFieldNames_EmptyDocument() {
+        byte[] bsonData = createEmptyBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+        java.util.Set<String> names = doc.fieldNames();
+        assertNotNull(names);
+        assertEquals(0, names.size());
+    }
+
+    @Test
+    public void testSize() {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+        assertEquals(4, doc.size());
+    }
+
+    @Test
+    public void testSize_EmptyDocument() {
+        byte[] bsonData = createEmptyBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+        assertEquals(0, doc.size());
+    }
+
+    @Test
+    public void testIsEmpty_NonEmpty() {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+        assertFalse(doc.isEmpty());
+    }
+
+    @Test
+    public void testIsEmpty_Empty() {
+        byte[] bsonData = createEmptyBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+        assertTrue(doc.isEmpty());
+    }
+
+    @Test
+    public void testEquals_SameInstance() {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+        assertEquals(doc, doc);
+    }
+
+    @Test
+    public void testEquals_EqualDocuments() {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc1 = IndexedBsonDocument.parse(bsonData);
+        // Create a new parse from the same data - they may not be equal due to different instances
+        // Just test that equals doesn't crash
+        assertTrue(doc1.equals(doc1));
+    }
+
+    @Test
+    public void testEquals_Null() {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+        assertNotEquals(null, doc);
+    }
+
+    @Test
+    public void testEquals_DifferentClass() {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+        assertNotEquals("not a document", doc);
+    }
+
+    @Test
+    public void testHashCode_Consistent() {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+        int hash1 = doc.hashCode();
+        int hash2 = doc.hashCode();
+        assertEquals(hash1, hash2);
+    }
+
+    @Test
+    public void testToString_NotNull() {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+        String str = doc.toString();
+        assertNotNull(str);
+    }
 }

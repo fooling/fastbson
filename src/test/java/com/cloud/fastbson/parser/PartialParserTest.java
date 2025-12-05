@@ -502,6 +502,260 @@ public class PartialParserTest {
         System.out.println("No early exit time: " + timeWithoutEarlyExit + " ns");
     }
 
+    // ==================== 嵌套文档和数组转换测试 (覆盖convertDocumentToMap和convertArrayToList的递归分支) ====================
+
+    @Test
+    public void testParseWithNestedDocument() {
+        // Arrange - 创建包含嵌套文档的BSON
+        BsonDocument innerDoc = new BsonDocument()
+            .append("innerField", new BsonString("innerValue"));
+        BsonDocument doc = new BsonDocument()
+            .append("name", new BsonString("John"))
+            .append("nested", innerDoc);
+
+        byte[] bsonData = serializeDocument(doc);
+        PartialParser parser = new PartialParser("name", "nested");
+
+        // Act
+        Map<String, Object> result = parser.parse(bsonData);
+
+        // Assert
+        assertNotNull(result);
+        assertTrue(result.containsKey("nested"));
+        Object nestedValue = result.get("nested");
+        assertTrue(nestedValue instanceof Map);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> nestedMap = (Map<String, Object>) nestedValue;
+        assertEquals("innerValue", nestedMap.get("innerField"));
+    }
+
+    @Test
+    public void testConvertDocumentToMapWithPrimitiveFields() {
+        // Arrange - 创建包含嵌套文档的BSON，嵌套文档中包含基本类型字段
+        // 这将测试convertDocumentToMap中value instanceof检查的"否"分支
+        // 即：当嵌套文档的字段值不是BsonDocument也不是BsonArray时
+        BsonDocument innerDoc = new BsonDocument()
+            .append("primitiveString", new BsonString("primitiveValue"))  // 基本类型，不需要递归
+            .append("primitiveInt", new BsonInt32(42))  // 基本类型，不需要递归
+            .append("primitiveBoolean", new BsonBoolean(true));  // 基本类型，不需要递归
+
+        BsonDocument doc = new BsonDocument()
+            .append("nestedDoc", innerDoc);
+
+        byte[] bsonData = serializeDocument(doc);
+        PartialParser parser = new PartialParser("nestedDoc");
+
+        // Act
+        Map<String, Object> result = parser.parse(bsonData);
+
+        // Assert
+        assertNotNull(result);
+        assertTrue(result.containsKey("nestedDoc"));
+        Object nestedValue = result.get("nestedDoc");
+        assertTrue(nestedValue instanceof Map);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> nestedMap = (Map<String, Object>) nestedValue;
+        // 这些基本类型字段在convertDocumentToMap中走的是"否"分支
+        assertEquals("primitiveValue", nestedMap.get("primitiveString"));
+        assertEquals(42, nestedMap.get("primitiveInt"));
+        assertEquals(true, nestedMap.get("primitiveBoolean"));
+    }
+
+    @Test
+    public void testConvertArrayToListWithPrimitiveElements() {
+        // Arrange - 创建包含数组的BSON，数组中包含基本类型元素
+        // 这将测试convertArrayToList中value instanceof检查的"否"分支
+        // 即：当数组元素不是BsonDocument也不是BsonArray时
+        BsonArray array = new BsonArray(Arrays.asList(
+            new BsonString("element1"),  // 基本类型
+            new BsonInt32(100),  // 基本类型
+            new BsonBoolean(false)  // 基本类型
+        ));
+
+        BsonDocument doc = new BsonDocument()
+            .append("primitiveArray", array);
+
+        byte[] bsonData = serializeDocument(doc);
+        PartialParser parser = new PartialParser("primitiveArray");
+
+        // Act
+        Map<String, Object> result = parser.parse(bsonData);
+
+        // Assert
+        assertNotNull(result);
+        assertTrue(result.containsKey("primitiveArray"));
+        Object arrayValue = result.get("primitiveArray");
+        assertTrue(arrayValue instanceof java.util.List);
+        @SuppressWarnings("unchecked")
+        java.util.List<Object> list = (java.util.List<Object>) arrayValue;
+        // 这些基本类型元素在convertArrayToList中走的是"否"分支
+        assertEquals(3, list.size());
+        assertEquals("element1", list.get(0));
+        assertEquals(100, list.get(1));
+        assertEquals(false, list.get(2));
+    }
+
+    @Test
+    public void testParseWithNestedArray() {
+        // Arrange - 创建包含嵌套数组的BSON
+        BsonArray innerArray = new BsonArray(Arrays.asList(
+            new BsonInt32(1),
+            new BsonInt32(2),
+            new BsonInt32(3)
+        ));
+        BsonDocument doc = new BsonDocument()
+            .append("name", new BsonString("John"))
+            .append("numbers", innerArray);
+
+        byte[] bsonData = serializeDocument(doc);
+        PartialParser parser = new PartialParser("name", "numbers");
+
+        // Act
+        Map<String, Object> result = parser.parse(bsonData);
+
+        // Assert
+        assertNotNull(result);
+        assertTrue(result.containsKey("numbers"));
+        Object numbersValue = result.get("numbers");
+        assertTrue(numbersValue instanceof java.util.List);
+        @SuppressWarnings("unchecked")
+        java.util.List<Object> numbersList = (java.util.List<Object>) numbersValue;
+        assertEquals(3, numbersList.size());
+        assertEquals(1, numbersList.get(0));
+        assertEquals(2, numbersList.get(1));
+        assertEquals(3, numbersList.get(2));
+    }
+
+    @Test
+    public void testParseWithArrayContainingDocuments() {
+        // Arrange - 创建包含文档的数组
+        BsonDocument innerDoc1 = new BsonDocument().append("id", new BsonInt32(1));
+        BsonDocument innerDoc2 = new BsonDocument().append("id", new BsonInt32(2));
+        BsonArray arrayWithDocs = new BsonArray(Arrays.asList(innerDoc1, innerDoc2));
+
+        BsonDocument doc = new BsonDocument()
+            .append("items", arrayWithDocs);
+
+        byte[] bsonData = serializeDocument(doc);
+        PartialParser parser = new PartialParser("items");
+
+        // Act
+        Map<String, Object> result = parser.parse(bsonData);
+
+        // Assert
+        assertNotNull(result);
+        assertTrue(result.containsKey("items"));
+        Object itemsValue = result.get("items");
+        assertTrue(itemsValue instanceof java.util.List);
+        @SuppressWarnings("unchecked")
+        java.util.List<Object> itemsList = (java.util.List<Object>) itemsValue;
+        assertEquals(2, itemsList.size());
+        assertTrue(itemsList.get(0) instanceof Map);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> firstItem = (Map<String, Object>) itemsList.get(0);
+        assertEquals(1, firstItem.get("id"));
+    }
+
+    @Test
+    public void testParseWithDocumentContainingArrayOfArrays() {
+        // Arrange - 测试数组中包含嵌套数组
+        BsonArray innerArray1 = new BsonArray(Arrays.asList(new BsonInt32(1), new BsonInt32(2)));
+        BsonArray innerArray2 = new BsonArray(Arrays.asList(new BsonInt32(3), new BsonInt32(4)));
+        BsonArray outerArray = new BsonArray(Arrays.asList(innerArray1, innerArray2));
+
+        BsonDocument doc = new BsonDocument()
+            .append("matrix", outerArray);
+
+        byte[] bsonData = serializeDocument(doc);
+        PartialParser parser = new PartialParser("matrix");
+
+        // Act
+        Map<String, Object> result = parser.parse(bsonData);
+
+        // Assert
+        assertNotNull(result);
+        assertTrue(result.containsKey("matrix"));
+        Object matrixValue = result.get("matrix");
+        assertTrue(matrixValue instanceof java.util.List);
+        @SuppressWarnings("unchecked")
+        java.util.List<Object> matrixList = (java.util.List<Object>) matrixValue;
+        assertEquals(2, matrixList.size());
+        assertTrue(matrixList.get(0) instanceof java.util.List);
+        @SuppressWarnings("unchecked")
+        java.util.List<Object> firstRow = (java.util.List<Object>) matrixList.get(0);
+        assertEquals(2, firstRow.size());
+        assertEquals(1, firstRow.get(0));
+        assertEquals(2, firstRow.get(1));
+    }
+
+    @Test
+    public void testConvertDocumentToMapWithNestedDocumentField() {
+        // Test to cover Line 207 true branch: nested document contains another nested document
+        // This ensures convertDocumentToMap recursively converts nested documents
+        BsonDocument deeplyNestedDoc = new BsonDocument()
+            .append("deepValue", new BsonString("deep"));
+
+        BsonDocument nestedDoc = new BsonDocument()
+            .append("level2", deeplyNestedDoc)  // This is a BsonDocument!
+            .append("primitiveField", new BsonInt32(42));
+
+        BsonDocument doc = new BsonDocument()
+            .append("level1", nestedDoc);
+
+        byte[] bsonData = serializeDocument(doc);
+        PartialParser parser = new PartialParser("level1");
+
+        // Act
+        Map<String, Object> result = parser.parse(bsonData);
+
+        // Assert
+        assertNotNull(result);
+        assertTrue(result.containsKey("level1"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> level1Map = (Map<String, Object>) result.get("level1");
+        assertTrue(level1Map.containsKey("level2"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> level2Map = (Map<String, Object>) level1Map.get("level2");
+        assertEquals("deep", level2Map.get("deepValue"));
+    }
+
+    @Test
+    public void testConvertDocumentToMapWithNestedArrayField() {
+        // Test to cover Line 209 true branch: nested document contains an array
+        // This ensures convertDocumentToMap recursively converts nested arrays
+        BsonArray nestedArray = new BsonArray(Arrays.asList(
+            new BsonInt32(1),
+            new BsonInt32(2),
+            new BsonInt32(3)
+        ));
+
+        BsonDocument nestedDoc = new BsonDocument()
+            .append("arrayField", nestedArray)  // This is a BsonArray!
+            .append("primitiveField", new BsonString("test"));
+
+        BsonDocument doc = new BsonDocument()
+            .append("outer", nestedDoc);
+
+        byte[] bsonData = serializeDocument(doc);
+        PartialParser parser = new PartialParser("outer");
+
+        // Act
+        Map<String, Object> result = parser.parse(bsonData);
+
+        // Assert
+        assertNotNull(result);
+        assertTrue(result.containsKey("outer"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> outerMap = (Map<String, Object>) result.get("outer");
+        assertTrue(outerMap.containsKey("arrayField"));
+        @SuppressWarnings("unchecked")
+        java.util.List<Object> arrayList = (java.util.List<Object>) outerMap.get("arrayField");
+        assertEquals(3, arrayList.size());
+        assertEquals(1, arrayList.get(0));
+        assertEquals(2, arrayList.get(1));
+        assertEquals(3, arrayList.get(2));
+    }
+
     // ==================== 辅助方法 ====================
 
     private byte[] serializeDocument(BsonDocument doc) {
