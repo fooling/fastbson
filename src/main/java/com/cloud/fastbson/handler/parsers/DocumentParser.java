@@ -201,7 +201,7 @@ public enum DocumentParser implements BsonTypeParser {
     private Object parseDirectHashMap(BsonReader reader, int endPosition) {
         // Phase 1 优化：直接返回 HashMap，避免防御性复制
         java.util.Map<String, Object> data = new java.util.HashMap<String, Object>();
-        java.util.Map<String, Byte> types = java.util.Collections.emptyMap();  // 空map，零开销
+        java.util.Map<String, Byte> types = new java.util.HashMap<String, Byte>();
 
         while (reader.position() < endPosition) {
             byte type = reader.readByte();
@@ -212,6 +212,7 @@ public enum DocumentParser implements BsonTypeParser {
             String fieldName = reader.readCString();
             Object value = parseValueDirect(reader, type);
             data.put(fieldName, value);
+            types.put(fieldName, Byte.valueOf(type));  // Track type for each field
         }
 
         // 创建轻量级 HashMapBsonDocument（避免防御性复制）
@@ -287,6 +288,9 @@ public enum DocumentParser implements BsonTypeParser {
 
             case BsonType.MAX_KEY:
                 return "MaxKey";
+
+            case BsonType.UNDEFINED:
+                return null;  // Undefined type (deprecated) - treat as null
 
             default:
                 throw new com.cloud.fastbson.exception.InvalidBsonTypeException(type);
