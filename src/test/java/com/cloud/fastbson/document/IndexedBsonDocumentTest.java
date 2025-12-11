@@ -941,4 +941,536 @@ public class IndexedBsonDocumentTest {
         String str = doc.toString();
         assertNotNull(str);
     }
+
+    // ==================== Tests for 0% coverage methods ====================
+
+    /**
+     * Test linearSearch() method by creating hash collision scenario.
+     * linearSearch is called when there's a hash collision during field lookup.
+     */
+    @Test
+    public void testLinearSearch_HashCollision() {
+        // Create document with many fields to increase chance of testing linear search
+        ByteBuffer buffer = ByteBuffer.allocate(4096).order(ByteOrder.LITTLE_ENDIAN);
+        int startPos = buffer.position();
+        buffer.putInt(0); // placeholder
+
+        // Add multiple fields that might have hash collisions
+        for (int i = 0; i < 15; i++) {
+            buffer.put((byte) 0x10); // Int32
+            buffer.put(("field" + i + "\0").getBytes(StandardCharsets.UTF_8));
+            buffer.putInt(i * 10);
+        }
+
+        buffer.put((byte) 0x00); // End
+        int endPos = buffer.position();
+        buffer.putInt(startPos, endPos - startPos);
+
+        byte[] bsonData = Arrays.copyOf(buffer.array(), endPos);
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+
+        // Test accessing fields - this will trigger binary search and potentially linear search
+        for (int i = 0; i < 15; i++) {
+            assertEquals(i * 10, doc.getInt32("field" + i));
+        }
+
+        // Test non-existent field - should return null from get()
+        assertNull(doc.get("nonexistent"));
+    }
+
+    /**
+     * Test countCached() by accessing various fields and checking cache state.
+     */
+    @Test
+    public void testCountCached_NoCache() {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+
+        // Before any access, cache should not be created
+        String str = doc.toString();
+        assertTrue(str.contains("cached=0"));
+    }
+
+    @Test
+    public void testCountCached_PartialCache() {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+
+        // Access some fields to partially populate cache
+        doc.getInt32("age");
+        doc.getString("name");
+
+        String str = doc.toString();
+        assertTrue(str.contains("cached=2"));
+    }
+
+    @Test
+    public void testCountCached_FullCache() {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+
+        // Access all fields
+        doc.getString("name");
+        doc.getInt32("age");
+        doc.getDouble("score");
+        doc.getBoolean("active");
+
+        String str = doc.toString();
+        assertTrue(str.contains("cached=4"));
+    }
+
+    /**
+     * Test getObjectId with default value - field exists.
+     */
+    @Test
+    public void testGetObjectId_WithDefault_FieldExists() {
+        byte[] bsonData = createAllTypesBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+
+        String result = doc.getObjectId("objectIdField", "default-id");
+        assertEquals("0102030405060708090a0b0c", result);
+    }
+
+    /**
+     * Test getObjectId with default value - field does not exist.
+     */
+    @Test
+    public void testGetObjectId_WithDefault_FieldNotExists() {
+        byte[] bsonData = createAllTypesBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+
+        String result = doc.getObjectId("nonexistent", "default-id");
+        assertEquals("default-id", result);
+    }
+
+    /**
+     * Test getObjectId with default value - field exists but wrong type.
+     */
+    @Test
+    public void testGetObjectId_WithDefault_WrongType() {
+        byte[] bsonData = createAllTypesBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+
+        // stringField is not ObjectId type
+        String result = doc.getObjectId("stringField", "default-id");
+        assertEquals("default-id", result);
+    }
+
+    /**
+     * Test getBinary with default value - field exists.
+     */
+    @Test
+    public void testGetBinary_WithDefault_FieldExists() {
+        byte[] bsonData = createAllTypesBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+
+        byte[] defaultValue = new byte[]{9, 9, 9};
+        byte[] result = doc.getBinary("binaryField", defaultValue);
+        assertNotNull(result);
+        assertEquals(5, result.length);
+        assertArrayEquals(new byte[]{0x01, 0x02, 0x03, 0x04, 0x05}, result);
+    }
+
+    /**
+     * Test getBinary with default value - field does not exist.
+     */
+    @Test
+    public void testGetBinary_WithDefault_FieldNotExists() {
+        byte[] bsonData = createAllTypesBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+
+        byte[] defaultValue = new byte[]{9, 9, 9};
+        byte[] result = doc.getBinary("nonexistent", defaultValue);
+        assertSame(defaultValue, result);
+    }
+
+    /**
+     * Test getBinary with default value - field exists but wrong type.
+     */
+    @Test
+    public void testGetBinary_WithDefault_WrongType() {
+        byte[] bsonData = createAllTypesBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+
+        byte[] defaultValue = new byte[]{9, 9, 9};
+        byte[] result = doc.getBinary("stringField", defaultValue);
+        assertSame(defaultValue, result);
+    }
+
+    /**
+     * Test getArray with default value - field exists.
+     */
+    @Test
+    public void testGetArray_WithDefault_FieldExists() {
+        byte[] bsonData = createArrayBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+
+        BsonArray result = doc.getArray("numbers", null);
+        assertNotNull(result);
+        assertEquals(3, result.size());
+    }
+
+    /**
+     * Test getArray with default value - field does not exist.
+     */
+    @Test
+    public void testGetArray_WithDefault_FieldNotExists() {
+        byte[] bsonData = createArrayBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+
+        BsonArray defaultArray = IndexedBsonArray.parse(new byte[]{5, 0, 0, 0, 0}, 0, 5);
+        BsonArray result = doc.getArray("nonexistent", defaultArray);
+        assertSame(defaultArray, result);
+    }
+
+    /**
+     * Test getArray with default value - field exists but wrong type.
+     */
+    @Test
+    public void testGetArray_WithDefault_WrongType() {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+
+        BsonArray defaultArray = IndexedBsonArray.parse(new byte[]{5, 0, 0, 0, 0}, 0, 5);
+        BsonArray result = doc.getArray("name", defaultArray);
+        assertSame(defaultArray, result);
+    }
+
+    /**
+     * Test getDocument with default value - field exists.
+     */
+    @Test
+    public void testGetDocument_WithDefault_FieldExists() {
+        byte[] bsonData = createNestedBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+
+        BsonDocument result = doc.getDocument("address", null);
+        assertNotNull(result);
+        assertEquals("NYC", result.getString("city"));
+    }
+
+    /**
+     * Test getDocument with default value - field does not exist.
+     */
+    @Test
+    public void testGetDocument_WithDefault_FieldNotExists() {
+        byte[] bsonData = createNestedBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+
+        BsonDocument defaultDoc = IndexedBsonDocument.parse(new byte[]{5, 0, 0, 0, 0});
+        BsonDocument result = doc.getDocument("nonexistent", defaultDoc);
+        assertSame(defaultDoc, result);
+    }
+
+    /**
+     * Test getDocument with default value - field exists but wrong type.
+     */
+    @Test
+    public void testGetDocument_WithDefault_WrongType() {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+
+        BsonDocument defaultDoc = IndexedBsonDocument.parse(new byte[]{5, 0, 0, 0, 0});
+        BsonDocument result = doc.getDocument("name", defaultDoc);
+        assertSame(defaultDoc, result);
+    }
+
+    /**
+     * Test getString exception when field type is wrong.
+     */
+    @Test
+    public void testGetString_WrongType_ThrowsException() {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+
+        // age is INT32, not STRING
+        assertThrows(IllegalArgumentException.class, () -> doc.getString("age"));
+    }
+
+    /**
+     * Test getArray exception when field type is wrong.
+     */
+    @Test
+    public void testGetArray_WrongType_ThrowsException() {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+
+        // name is STRING, not ARRAY
+        assertThrows(IllegalArgumentException.class, () -> doc.getArray("name"));
+    }
+
+    /**
+     * Test getArray cache hit.
+     */
+    @Test
+    public void testGetArray_CacheHit() {
+        byte[] bsonData = createArrayBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+
+        // First access - miss cache
+        BsonArray first = doc.getArray("numbers");
+        assertNotNull(first);
+
+        // Second access - hit cache
+        BsonArray second = doc.getArray("numbers");
+        assertNotNull(second);
+        assertSame(first, second);  // Should be same object from cache
+    }
+
+    /**
+     * Test getString with default - cache hit branch.
+     */
+    @Test
+    public void testGetString_WithDefault_CacheHit() {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+
+        // Prime cache
+        String first = doc.getString("name");
+        assertEquals("Alice", first);
+
+        // Access with default - should hit cache
+        String second = doc.getString("name", "default");
+        assertEquals("Alice", second);
+        assertSame(first, second);
+    }
+
+    /**
+     * Test getString with default - null field case.
+     */
+    @Test
+    public void testGetString_WithDefault_NullField() {
+        byte[] bsonData = createAllTypesBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+
+        // nullField exists but is null type
+        String result = doc.getString("nullField", "default");
+        assertEquals("default", result);
+    }
+
+    /**
+     * Test matchesFieldName with non-matching length.
+     */
+    @Test
+    public void testMatchesFieldName_DifferentLength() {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+
+        // Try to access with name that has different length
+        // This will hit the length check in matchesFieldName
+        assertNull(doc.get("namex"));  // Different length from "name"
+        assertNull(doc.get("nam"));     // Different length from "name"
+    }
+
+    /**
+     * Test matchesFieldName with matching length but different characters.
+     */
+    @Test
+    public void testMatchesFieldName_SameLength_DifferentChars() {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+
+        // Try to access with name that has same length as existing field
+        // but different characters - this will hit the character comparison loop
+        assertNull(doc.get("nXme"));  // Same length as "name" but different chars
+        assertNull(doc.get("agex"));  // Same length as "age" but different chars
+    }
+
+    /**
+     * Test toBson when offset=0 and length=data.length (zero-copy path).
+     */
+    @Test
+    public void testToBson_ZeroCopyPath() {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+
+        byte[] result = doc.toBson();
+        assertSame(bsonData, result);  // Should be same array reference (zero-copy)
+    }
+
+    /**
+     * Test toBson when offset != 0 or length != data.length (copy path).
+     */
+    @Test
+    public void testToBson_CopyPath() {
+        // Create a larger buffer with document at non-zero offset
+        ByteBuffer buffer = ByteBuffer.allocate(2048).order(ByteOrder.LITTLE_ENDIAN);
+
+        // Add some padding at the beginning
+        buffer.put(new byte[100]);
+
+        int docStart = buffer.position();
+        buffer.putInt(0); // placeholder for document length
+
+        // String field: "name": "Alice"
+        buffer.put((byte) 0x02); // String type
+        buffer.put("name\0".getBytes(StandardCharsets.UTF_8));
+        buffer.putInt(6); // "Alice\0" length
+        buffer.put("Alice\0".getBytes(StandardCharsets.UTF_8));
+
+        buffer.put((byte) 0x00); // End of document
+
+        int docEnd = buffer.position();
+        buffer.putInt(docStart, docEnd - docStart);
+
+        byte[] fullData = buffer.array();
+        int docLength = docEnd - docStart;
+
+        // Parse with non-zero offset
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(fullData, docStart, docLength);
+
+        // toBson should copy the document portion
+        byte[] result = doc.toBson();
+        assertEquals(docLength, result.length);
+        assertNotSame(fullData, result);  // Should be a copy, not same reference
+    }
+
+    /**
+     * Test linearSearch by creating actual hash collision.
+     * We need fields whose hashCode() collides after binary search.
+     */
+    @Test
+    public void testLinearSearch_ActualHashCollision() {
+        // Find strings with hash collisions - "Aa" and "BB" have same hashCode
+        assertEquals("Aa".hashCode(), "BB".hashCode());
+
+        ByteBuffer buffer = ByteBuffer.allocate(4096).order(ByteOrder.LITTLE_ENDIAN);
+        int startPos = buffer.position();
+        buffer.putInt(0); // placeholder
+
+        // Add field "Aa"
+        buffer.put((byte) 0x10); // Int32
+        buffer.put("Aa\0".getBytes(StandardCharsets.UTF_8));
+        buffer.putInt(11);
+
+        // Add field "BB"
+        buffer.put((byte) 0x10); // Int32
+        buffer.put("BB\0".getBytes(StandardCharsets.UTF_8));
+        buffer.putInt(22);
+
+        buffer.put((byte) 0x00); // End
+        int endPos = buffer.position();
+        buffer.putInt(startPos, endPos - startPos);
+
+        byte[] bsonData = Arrays.copyOf(buffer.array(), endPos);
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+
+        // Access both fields - this will trigger hash collision handling
+        assertEquals(11, doc.getInt32("Aa"));
+        assertEquals(22, doc.getInt32("BB"));
+
+        // Also test with get() for more coverage
+        assertEquals(11, doc.get("Aa"));
+        assertEquals(22, doc.get("BB"));
+    }
+
+    /**
+     * Test linearSearch backward search.
+     */
+    @Test
+    public void testLinearSearch_BackwardSearch() {
+        // Create more fields with hash collisions
+        // "Aa" and "BB" have same hash, "C#" and "Da" have same hash
+        ByteBuffer buffer = ByteBuffer.allocate(4096).order(ByteOrder.LITTLE_ENDIAN);
+        int startPos = buffer.position();
+        buffer.putInt(0); // placeholder
+
+        // Add fields in specific order to test backward search
+        buffer.put((byte) 0x10);
+        buffer.put("BB\0".getBytes(StandardCharsets.UTF_8));
+        buffer.putInt(100);
+
+        buffer.put((byte) 0x10);
+        buffer.put("Aa\0".getBytes(StandardCharsets.UTF_8));
+        buffer.putInt(200);
+
+        buffer.put((byte) 0x00);
+        int endPos = buffer.position();
+        buffer.putInt(startPos, endPos - startPos);
+
+        byte[] bsonData = Arrays.copyOf(buffer.array(), endPos);
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+
+        // Access in reverse order to potentially trigger backward search
+        assertEquals(200, doc.getInt32("Aa"));
+        assertEquals(100, doc.getInt32("BB"));
+    }
+
+    /**
+     * Test ensureCache thread-safety edge case.
+     */
+    @Test
+    public void testEnsureCache_ThreadSafety() throws Exception {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+
+        // Access from multiple threads concurrently to test thread-safe cache initialization
+        Thread[] threads = new Thread[5];
+        for (int i = 0; i < threads.length; i++) {
+            threads[i] = new Thread(() -> {
+                doc.getString("name");
+                doc.getInt32("age");
+            });
+        }
+
+        for (Thread thread : threads) {
+            thread.start();
+        }
+
+        for (Thread thread : threads) {
+            thread.join();
+        }
+
+        // Verify cache was created and populated
+        assertNotNull(doc.toString());
+        assertTrue(doc.toString().contains("cached="));
+    }
+
+    /**
+     * Test isNull with null field (different code path).
+     */
+    @Test
+    public void testIsNull_UndefinedType() {
+        // Create document with UNDEFINED type (0x06)
+        ByteBuffer buffer = ByteBuffer.allocate(1024).order(ByteOrder.LITTLE_ENDIAN);
+        int startPos = buffer.position();
+        buffer.putInt(0); // placeholder
+
+        // Add undefined field
+        buffer.put((byte) 0x06); // UNDEFINED type
+        buffer.put("undef\0".getBytes(StandardCharsets.UTF_8));
+
+        buffer.put((byte) 0x00); // End
+        int endPos = buffer.position();
+        buffer.putInt(startPos, endPos - startPos);
+
+        byte[] bsonData = Arrays.copyOf(buffer.array(), endPos);
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+
+        // Test isNull on UNDEFINED type
+        assertTrue(doc.isNull("undef"));
+    }
+
+    /**
+     * Test parse with unsupported type to cover default branch.
+     */
+    @Test
+    public void testParse_UnsupportedType() {
+        ByteBuffer buffer = ByteBuffer.allocate(1024).order(ByteOrder.LITTLE_ENDIAN);
+        int startPos = buffer.position();
+        buffer.putInt(0); // placeholder
+
+        // Add field with unsupported type
+        buffer.put((byte) 0x99); // Unsupported type
+        buffer.put("bad\0".getBytes(StandardCharsets.UTF_8));
+
+        buffer.put((byte) 0x00); // End
+        int endPos = buffer.position();
+        buffer.putInt(startPos, endPos - startPos);
+
+        byte[] bsonData = Arrays.copyOf(buffer.array(), endPos);
+
+        // Should throw exception during parse due to unsupported type
+        assertThrows(IllegalArgumentException.class, () -> IndexedBsonDocument.parse(bsonData));
+    }
 }

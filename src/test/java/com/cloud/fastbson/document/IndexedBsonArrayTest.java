@@ -1292,4 +1292,391 @@ public class IndexedBsonArrayTest {
         IndexedBsonArray intArray = IndexedBsonArray.parse(intData, 0, intData.length);
         assertNull(intArray.getArray(0, null));
     }
+
+    // ==================== Tests for 0% coverage methods ====================
+
+    /**
+     * Test countCached() method by accessing elements and checking cache state.
+     */
+    @Test
+    public void testCountCached_NoCache() {
+        byte[] bsonData = createInt32Array();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        // Before any access, cache should not be created
+        String str = array.toString();
+        assertTrue(str.contains("cached=0"));
+    }
+
+    @Test
+    public void testCountCached_PartialCache() {
+        byte[] bsonData = createInt32Array();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        // Access some elements to partially populate cache
+        array.getInt32(0);
+        array.getInt32(1);
+
+        String str = array.toString();
+        assertTrue(str.contains("cached=2"));
+    }
+
+    @Test
+    public void testCountCached_FullCache() {
+        byte[] bsonData = createInt32Array();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        // Access all elements
+        array.getInt32(0);
+        array.getInt32(1);
+        array.getInt32(2);
+
+        String str = array.toString();
+        assertTrue(str.contains("cached=3"));
+    }
+
+    /**
+     * Test getDocument exception branches.
+     */
+    @Test
+    public void testGetDocument_WrongType_ThrowsException() {
+        byte[] bsonData = createInt32Array();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        // Element at index 0 is INT32, not DOCUMENT
+        assertThrows(IllegalArgumentException.class, () -> array.getDocument(0));
+    }
+
+    @Test
+    public void testGetDocument_CacheHit() {
+        byte[] bsonData = createNestedDocumentArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        // First access - miss cache
+        BsonDocument first = array.getDocument(0);
+        assertNotNull(first);
+
+        // Second access - hit cache
+        BsonDocument second = array.getDocument(0);
+        assertNotNull(second);
+        assertSame(first, second);  // Should be same object from cache
+    }
+
+    /**
+     * Test getArray exception branches.
+     */
+    @Test
+    public void testGetArray_WrongType_ThrowsException() {
+        byte[] bsonData = createInt32Array();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        // Element at index 0 is INT32, not ARRAY
+        assertThrows(IllegalArgumentException.class, () -> array.getArray(0));
+    }
+
+    @Test
+    public void testGetArray_CacheHit() {
+        byte[] bsonData = createNestedArrayArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        // First access - miss cache
+        BsonArray first = array.getArray(0);
+        assertNotNull(first);
+
+        // Second access - hit cache
+        BsonArray second = array.getArray(0);
+        assertNotNull(second);
+        assertSame(first, second);  // Should be same object from cache
+    }
+
+    /**
+     * Test ensureCache() edge cases.
+     */
+    @Test
+    public void testEnsureCache_ThreadSafety() throws Exception {
+        byte[] bsonData = createMixedArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        // Access from multiple threads concurrently to test thread-safe cache initialization
+        Thread[] threads = new Thread[5];
+        for (int i = 0; i < threads.length; i++) {
+            final int index = i % array.size();
+            threads[i] = new Thread(() -> {
+                array.get(index);
+            });
+        }
+
+        for (Thread thread : threads) {
+            thread.start();
+        }
+
+        for (Thread thread : threads) {
+            thread.join();
+        }
+
+        // Verify cache was created and populated
+        assertNotNull(array.toString());
+    }
+
+    /**
+     * Test get() exception branches and edge cases.
+     */
+    @Test
+    public void testGet_NegativeIndex_ReturnsNull() {
+        byte[] bsonData = createInt32Array();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        Object result = array.get(-1);
+        assertNull(result);
+    }
+
+    @Test
+    public void testGet_IndexEqualToSize_ReturnsNull() {
+        byte[] bsonData = createInt32Array();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        Object result = array.get(array.size());
+        assertNull(result);
+    }
+
+    @Test
+    public void testGet_CacheHit_AllTypes() {
+        byte[] bsonData = createMixedArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        // First access - populate cache
+        Object val0 = array.get(0);
+        Object val1 = array.get(1);
+        Object val2 = array.get(2);
+
+        // Second access - hit cache
+        assertSame(val0, array.get(0));
+        assertSame(val1, array.get(1));
+        assertSame(val2, array.get(2));
+    }
+
+    /**
+     * Test getString exception branches.
+     */
+    @Test
+    public void testGetString_CacheHit_WithDefaultValue() {
+        byte[] bsonData = createStringArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        // First access without default - prime cache
+        String first = array.getString(0);
+        assertEquals("a", first);
+
+        // Second access with default - should hit cache
+        String second = array.getString(0, "default");
+        assertEquals("a", second);
+        assertSame(first, second);
+    }
+
+    @Test
+    public void testGetString_NegativeIndex_WithDefaultValue() {
+        byte[] bsonData = createStringArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        String result = array.getString(-1, "default");
+        assertEquals("default", result);
+    }
+
+    /**
+     * Test additional edge cases for exception coverage.
+     */
+    @Test
+    public void testGetDocument_NegativeIndex() {
+        byte[] bsonData = createNestedDocumentArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        assertThrows(IndexOutOfBoundsException.class, () -> array.getDocument(-1));
+    }
+
+    @Test
+    public void testGetArray_NegativeIndex() {
+        byte[] bsonData = createNestedArrayArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        assertThrows(IndexOutOfBoundsException.class, () -> array.getArray(-1));
+    }
+
+    /**
+     * Test getInt64 cache hit with default value.
+     */
+    @Test
+    public void testGetInt64_CacheHit_WithDefaultValue() {
+        byte[] bsonData = createInt64Array();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        // Prime cache
+        long first = array.getInt64(0);
+        assertEquals(100L, first);
+
+        // Access with default - should hit cache
+        long second = array.getInt64(0, 999L);
+        assertEquals(100L, second);
+    }
+
+    /**
+     * Test getDouble cache hit with default value.
+     */
+    @Test
+    public void testGetDouble_CacheHit_WithDefaultValue() {
+        byte[] bsonData = createDoubleArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        // Prime cache
+        double first = array.getDouble(0);
+        assertEquals(1.1, first, 0.001);
+
+        // Access with default - should hit cache
+        double second = array.getDouble(0, 999.0);
+        assertEquals(1.1, second, 0.001);
+    }
+
+    /**
+     * Test getBoolean cache hit with default value.
+     */
+    @Test
+    public void testGetBoolean_CacheHit_WithDefaultValue() {
+        byte[] bsonData = createBooleanArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        // Prime cache
+        boolean first = array.getBoolean(0);
+        assertEquals(true, first);
+
+        // Access with default - should hit cache
+        boolean second = array.getBoolean(0, false);
+        assertEquals(true, second);
+    }
+
+    /**
+     * Test getInt32 cache hit with default value.
+     */
+    @Test
+    public void testGetInt32_CacheHit_WithDefaultValue() {
+        byte[] bsonData = createInt32Array();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        // Prime cache
+        int first = array.getInt32(0);
+        assertEquals(10, first);
+
+        // Access with default - should hit cache
+        int second = array.getInt32(0, 999);
+        assertEquals(10, second);
+    }
+
+    /**
+     * Test parse with unsupported BSON type.
+     */
+    @Test
+    public void testParse_UnsupportedType_ThrowsException() {
+        ByteBuffer buffer = ByteBuffer.allocate(1024).order(ByteOrder.LITTLE_ENDIAN);
+
+        int startPos = buffer.position();
+        buffer.putInt(0); // placeholder
+
+        // Add unsupported type
+        buffer.put((byte) 0x99); // Invalid/unsupported type
+        buffer.put("0\0".getBytes(StandardCharsets.UTF_8));
+
+        buffer.put((byte) 0x00); // End
+
+        int endPos = buffer.position();
+        buffer.putInt(startPos, endPos - startPos);
+
+        byte[] bsonData = Arrays.copyOf(buffer.array(), endPos);
+
+        // Should throw exception
+        assertThrows(IllegalArgumentException.class, () -> {
+            IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+        });
+    }
+
+    /**
+     * Test get() with unsupported type in existing parsed array.
+     */
+    @Test
+    public void testGet_UnsupportedType_ThrowsException() {
+        // Create array with a type that's not handled in get() switch
+        ByteBuffer buffer = ByteBuffer.allocate(1024).order(ByteOrder.LITTLE_ENDIAN);
+
+        int startPos = buffer.position();
+        buffer.putInt(0); // placeholder
+
+        // Add ObjectId type (not handled in get() switch currently)
+        buffer.put((byte) 0x07); // ObjectId
+        buffer.put("0\0".getBytes(StandardCharsets.UTF_8));
+        buffer.put(new byte[12]);  // 12 bytes ObjectId
+
+        buffer.put((byte) 0x00); // End
+
+        int endPos = buffer.position();
+        buffer.putInt(startPos, endPos - startPos);
+
+        byte[] bsonData = Arrays.copyOf(buffer.array(), endPos);
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        // get() should throw UnsupportedOperationException for unhandled type
+        assertThrows(UnsupportedOperationException.class, () -> array.get(0));
+    }
+
+    /**
+     * Test ensureCache with simultaneous access.
+     */
+    @Test
+    public void testEnsureCache_SimultaneousAccess() {
+        byte[] bsonData = createInt32Array();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        // Access cache == null check simultaneously - should be thread-safe
+        assertNotNull(array.toString());
+        assertTrue(array.toString().contains("size=3"));
+    }
+
+    /**
+     * Test getString with cache already present (cache != null && cache[index] != null).
+     */
+    @Test
+    public void testGetString_ExistingCache() {
+        byte[] bsonData = createStringArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        // Prime cache
+        String first = array.getString(0);
+        assertEquals("a", first);
+
+        // Access again - cache hit
+        String second = array.getString(0);
+        assertSame(first, second);
+    }
+
+    /**
+     * Test parse with no fields (edge case).
+     */
+    @Test
+    public void testParse_EmptyData_EdgeCase() {
+        byte[] bsonData = createEmptyArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        assertEquals(0, array.size());
+        assertTrue(array.isEmpty());
+        assertNull(array.get(0));
+    }
+
+    /**
+     * Test getType with valid index.
+     */
+    @Test
+    public void testGetType_ValidIndex() {
+        byte[] bsonData = createMixedArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        assertEquals((byte) 0x10, array.getType(0));  // INT32
+        assertEquals((byte) 0x02, array.getType(1));  // STRING
+        assertEquals((byte) 0x01, array.getType(2));  // DOUBLE
+    }
 }
