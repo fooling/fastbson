@@ -4,8 +4,8 @@
 
 [![Java](https://img.shields.io/badge/Java-8-blue.svg)](https://www.oracle.com/java/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/Tests-657%20passing-brightgreen.svg)]()
-[![Coverage](https://img.shields.io/badge/Coverage-62%25-yellow.svg)]()
+[![Tests](https://img.shields.io/badge/Tests-1094%20passing-brightgreen.svg)]()
+[![Coverage](https://img.shields.io/badge/Coverage-90%25-brightgreen.svg)]()
 
 ---
 
@@ -96,6 +96,414 @@ boolean active = doc.getBoolean("active");
 
 // 支持默认值
 String department = doc.getString("department", "Unknown");
+```
+
+---
+
+## 使用示例
+
+### 场景 1: 完整文档解析 - HashMap 模式
+
+**适用场景**：需要访问文档中的大部分或全部字段
+
+```java
+import com.cloud.fastbson.FastBson;
+import com.cloud.fastbson.document.BsonDocument;
+import com.cloud.fastbson.document.hashmap.HashMapBsonDocumentFactory;
+import com.cloud.fastbson.reader.BsonReader;
+
+// 设置为 HashMap 模式（默认，完整解析）
+FastBson.setDocumentFactory(HashMapBsonDocumentFactory.INSTANCE);
+
+// 解析 BSON 数据
+byte[] bsonData = ...; // 来自 MongoDB 或其他来源
+BsonDocument doc = FastBson.parse(new BsonReader(bsonData));
+
+// 访问字段（已全部解析，速度快）
+String name = doc.getString("name");
+int age = doc.getInt32("age");
+double salary = doc.getDouble("salary");
+boolean active = doc.getBoolean("active");
+
+// 性能：2-3x vs MongoDB BSON（中等文档）
+// 内存：完整解析，内存占用较高
+```
+
+### 场景 2: 部分字段提取 - PartialParser 早退模式
+
+**适用场景**：只需要提取少量字段（5-10 个），追求极致速度
+
+```java
+import com.cloud.fastbson.parser.PartialParser;
+import java.util.Map;
+
+// 创建 PartialParser，指定需要的字段
+PartialParser parser = new PartialParser("userId", "timestamp", "eventType");
+
+// 启用早退优化（找到目标字段后立即停止解析）
+parser.setEarlyExit(true);
+
+// 解析 BSON 数据（只解析需要的字段）
+byte[] bsonData = ...; // 100+ 字段的大文档
+Map<String, Object> result = parser.parse(bsonData);
+
+// 获取字段值
+String userId = (String) result.get("userId");
+Long timestamp = (Long) result.get("timestamp");
+String eventType = (String) result.get("eventType");
+
+// 性能：7-8x vs MongoDB BSON（大文档，少量字段）
+// 适合：日志解析、事件流处理、数据管道
+```
+
+### 场景 3: 零复制惰性解析 - IndexedBsonDocument 模式
+
+**适用场景**：需要重复访问同一文档，或内存敏感场景
+
+```java
+import com.cloud.fastbson.FastBson;
+import com.cloud.fastbson.document.BsonDocument;
+import com.cloud.fastbson.document.indexed.IndexedBsonDocumentFactory;
+import com.cloud.fastbson.reader.BsonReader;
+
+// 设置为 Indexed 模式（零复制，惰性解析）
+FastBson.setDocumentFactory(IndexedBsonDocumentFactory.INSTANCE);
+
+// 解析 BSON 数据（仅构建字段索引，不解析值）
+byte[] bsonData = ...; // 100+ 字段的大文档
+BsonDocument doc = FastBson.parse(new BsonReader(bsonData));
+
+// 按需访问字段（惰性解析，只解析访问的字段）
+String field0 = doc.getString("field0");    // 首次访问，解析并缓存
+int field5 = doc.getInt32("field5");        // 首次访问，解析并缓存
+String field0Again = doc.getString("field0"); // 二次访问，直接从缓存读取
+
+// 性能：3-5x vs MongoDB BSON（重复访问）
+// 内存：70% 降低（~30 bytes/field vs ~200 bytes/field）
+// 适合：内存敏感场景、需要多次访问同一文档
+```
+
+### 场景 4: 嵌套文档和数组访问
+
+**适用场景**：处理复杂的嵌套结构
+
+```java
+import com.cloud.fastbson.FastBson;
+import com.cloud.fastbson.document.BsonDocument;
+import com.cloud.fastbson.document.BsonArray;
+import com.cloud.fastbson.reader.BsonReader;
+
+// 解析包含嵌套结构的 BSON 文档
+byte[] bsonData = ...; // { "user": { "name": "Alice", "tags": ["admin", "developer"] } }
+BsonDocument doc = FastBson.parse(new BsonReader(bsonData));
+
+// 访问嵌套文档
+BsonDocument user = doc.getDocument("user");
+String userName = user.getString("name");
+
+// 访问嵌套数组
+BsonArray tags = user.getArray("tags");
+String firstTag = tags.getString(0);
+String secondTag = tags.getString(1);
+
+// 遍历数组
+for (int i = 0; i < tags.size(); i++) {
+    String tag = tags.getString(i);
+    System.out.println("Tag: " + tag);
+}
+
+// 深度嵌套访问（支持 50+ 层嵌套）
+BsonDocument level1 = doc.getDocument("level1");
+BsonDocument level2 = level1.getDocument("level2");
+int deepValue = level2.getInt32("value");
+```
+
+### 场景 5: 性能敏感场景 - 日志解析
+
+**适用场景**：高吞吐量的日志解析和事件处理
+
+```java
+import com.cloud.fastbson.parser.PartialParser;
+import java.util.Map;
+import java.util.concurrent.ArrayBlockingQueue;
+
+// 日志解析器（只提取关键字段）
+public class LogParser {
+    private final PartialParser parser;
+
+    public LogParser() {
+        // 只提取日志的关键字段
+        this.parser = new PartialParser(
+            "timestamp", "level", "message", "userId", "traceId"
+        );
+        this.parser.setEarlyExit(true); // 早退优化
+    }
+
+    public LogEntry parse(byte[] bsonLog) {
+        Map<String, Object> result = parser.parse(bsonLog);
+
+        return new LogEntry(
+            (Long) result.get("timestamp"),
+            (String) result.get("level"),
+            (String) result.get("message"),
+            (String) result.get("userId"),
+            (String) result.get("traceId")
+        );
+    }
+}
+
+// 使用示例
+LogParser logParser = new LogParser();
+ArrayBlockingQueue<byte[]> logQueue = new ArrayBlockingQueue<>(10000);
+
+// 高吞吐量处理（7-8x vs MongoDB BSON）
+while (true) {
+    byte[] bsonLog = logQueue.take();
+    LogEntry entry = logParser.parse(bsonLog);
+    processLog(entry);
+}
+```
+
+### 场景 6: 内存敏感场景 - 大量文档缓存
+
+**适用场景**：需要在内存中缓存大量 BSON 文档
+
+```java
+import com.cloud.fastbson.FastBson;
+import com.cloud.fastbson.document.BsonDocument;
+import com.cloud.fastbson.document.indexed.IndexedBsonDocumentFactory;
+import com.cloud.fastbson.reader.BsonReader;
+import java.util.HashMap;
+import java.util.Map;
+
+// 设置为 Indexed 模式（内存占用降低 70%）
+FastBson.setDocumentFactory(IndexedBsonDocumentFactory.INSTANCE);
+
+// 文档缓存（零复制，惰性解析）
+public class DocumentCache {
+    private final Map<String, BsonDocument> cache = new HashMap<>();
+
+    public void cache(String id, byte[] bsonData) {
+        // 只构建索引，不解析值（内存占用低）
+        BsonDocument doc = FastBson.parse(new BsonReader(bsonData));
+        cache.put(id, doc);
+    }
+
+    public String getUserName(String id) {
+        BsonDocument doc = cache.get(id);
+        // 按需解析字段（惰性解析）
+        return doc.getString("name");
+    }
+}
+
+// 使用示例
+DocumentCache cache = new DocumentCache();
+
+// 缓存 10,000 个文档（内存占用降低 70%）
+for (int i = 0; i < 10000; i++) {
+    byte[] bsonData = fetchFromDatabase(i);
+    cache.cache("doc_" + i, bsonData);
+}
+
+// 按需访问（惰性解析，只解析访问的字段）
+String name = cache.getUserName("doc_1234");
+```
+
+### 场景 7: 跨库兼容性 - 与 org.mongodb:bson 互操作
+
+**适用场景**：需要与 MongoDB Java Driver 互操作
+
+```java
+import com.cloud.fastbson.FastBson;
+import com.cloud.fastbson.document.BsonDocument;
+import com.cloud.fastbson.reader.BsonReader;
+import org.bson.BsonBinaryWriter;
+import org.bson.io.BasicOutputBuffer;
+
+// 1. 使用 org.mongodb:bson 生成 BSON 数据
+BasicOutputBuffer buffer = new BasicOutputBuffer();
+BsonBinaryWriter writer = new BsonBinaryWriter(buffer);
+
+writer.writeStartDocument();
+writer.writeString("name", "Alice");
+writer.writeInt32("age", 30);
+writer.writeBoolean("active", true);
+writer.writeEndDocument();
+writer.flush();
+
+byte[] bsonData = buffer.toByteArray();
+
+// 2. 使用 FastBSON 解析（完全兼容）
+BsonDocument doc = FastBson.parse(new BsonReader(bsonData));
+
+// 3. 访问字段
+String name = doc.getString("name");
+int age = doc.getInt32("age");
+boolean active = doc.getBoolean("active");
+
+System.out.println("Name: " + name + ", Age: " + age + ", Active: " + active);
+// 输出: Name: Alice, Age: 30, Active: true
+
+// FastBSON 完全兼容 BSON spec v1.1，支持所有 MongoDB 生成的 BSON 数据
+```
+
+### 场景 8: 多线程场景 - 线程安全和对象池
+
+**适用场景**：高并发多线程环境
+
+```java
+import com.cloud.fastbson.parser.PartialParser;
+import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+// 多线程解析器（PartialParser 是线程安全的）
+public class MultiThreadedParser {
+    private final PartialParser parser;
+    private final ExecutorService executor;
+
+    public MultiThreadedParser() {
+        // 创建解析器（线程安全，可共享）
+        this.parser = new PartialParser("field1", "field2", "field3");
+        this.parser.setEarlyExit(true);
+
+        // 创建线程池
+        this.executor = Executors.newFixedThreadPool(8);
+    }
+
+    public void parseAsync(byte[] bsonData) {
+        executor.submit(() -> {
+            // 每个线程安全地使用共享的 parser
+            Map<String, Object> result = parser.parse(bsonData);
+            processResult(result);
+        });
+    }
+
+    private void processResult(Map<String, Object> result) {
+        // 处理解析结果
+        System.out.println("Parsed: " + result);
+    }
+}
+
+// 使用示例
+MultiThreadedParser parser = new MultiThreadedParser();
+
+// 并发解析（线程安全，无竞争）
+for (int i = 0; i < 10000; i++) {
+    byte[] bsonData = generateBsonData(i);
+    parser.parseAsync(bsonData);
+}
+```
+
+### 场景 9: 实际业务场景 - 用户行为数据聚合
+
+**适用场景**：分析大量用户行为数据，提取关键指标
+
+```java
+import com.cloud.fastbson.parser.PartialParser;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.concurrent.atomic.AtomicLong;
+
+// 用户行为数据聚合器
+public class UserBehaviorAggregator {
+    private final PartialParser parser;
+    private final Map<String, AtomicLong> eventCounts = new HashMap<>();
+
+    public UserBehaviorAggregator() {
+        // 只提取分析需要的字段（从 100+ 字段中提取 4 个）
+        this.parser = new PartialParser(
+            "userId", "eventType", "timestamp", "duration"
+        );
+        this.parser.setEarlyExit(true); // 早退优化（7-8x speedup）
+    }
+
+    public void aggregate(byte[] bsonEvent) {
+        // 快速解析（只解析需要的 4 个字段）
+        Map<String, Object> event = parser.parse(bsonEvent);
+
+        String eventType = (String) event.get("eventType");
+        Long duration = (Long) event.get("duration");
+
+        // 统计事件次数
+        eventCounts.computeIfAbsent(eventType, k -> new AtomicLong())
+                   .incrementAndGet();
+
+        // 处理业务逻辑
+        if (duration > 10000) {
+            // 慢事件告警
+            alertSlowEvent(event);
+        }
+    }
+
+    public void printStatistics() {
+        System.out.println("=== 用户行为统计 ===");
+        eventCounts.forEach((eventType, count) -> {
+            System.out.println(eventType + ": " + count.get());
+        });
+    }
+
+    private void alertSlowEvent(Map<String, Object> event) {
+        System.out.println("ALERT: Slow event detected - " + event);
+    }
+}
+
+// 使用示例
+UserBehaviorAggregator aggregator = new UserBehaviorAggregator();
+
+// 处理 1,000,000 个事件（7-8x vs MongoDB BSON）
+for (int i = 0; i < 1000000; i++) {
+    byte[] bsonEvent = fetchEventFromQueue();
+    aggregator.aggregate(bsonEvent);
+}
+
+aggregator.printStatistics();
+```
+
+### 场景选择指南
+
+| 场景 | 推荐模式 | 性能提升 | 内存占用 | 适用条件 |
+|------|---------|----------|----------|---------|
+| **完整文档解析** | HashMap | 2-3x | 高 | 需要访问大部分字段 |
+| **部分字段提取** | PartialParser | 7-8x | 中 | 只需少量字段（5-10个） |
+| **零复制惰性** | IndexedDocument | 3-5x | 低（-70%） | 重复访问或内存敏感 |
+| **日志解析** | PartialParser | 7-8x | 中 | 高吞吐量，少量字段 |
+| **文档缓存** | IndexedDocument | 3-5x | 低（-70%） | 大量文档缓存 |
+| **嵌套结构** | HashMap/Indexed | 2-5x | 视模式而定 | 复杂嵌套访问 |
+| **多线程** | PartialParser | 7-8x | 中 | 高并发场景 |
+| **数据聚合** | PartialParser | 7-8x | 中 | 流式处理，少量字段 |
+
+### 默认值和异常处理
+
+```java
+import com.cloud.fastbson.FastBson;
+import com.cloud.fastbson.document.BsonDocument;
+import com.cloud.fastbson.reader.BsonReader;
+
+BsonDocument doc = FastBson.parse(new BsonReader(bsonData));
+
+// 使用默认值（字段不存在或类型不匹配时返回默认值）
+String name = doc.getString("name", "Unknown");
+int age = doc.getInt32("age", 0);
+double salary = doc.getDouble("salary", 0.0);
+boolean active = doc.getBoolean("active", false);
+
+// 检查字段是否存在
+if (doc.contains("email")) {
+    String email = doc.getString("email");
+    System.out.println("Email: " + email);
+}
+
+// 检查字段是否为 null
+if (doc.isNull("deletedAt")) {
+    System.out.println("Document is not deleted");
+}
+
+// 获取字段类型
+byte fieldType = doc.getType("age");
+if (fieldType == BsonType.INT32) {
+    int age = doc.getInt32("age");
+}
 ```
 
 ---
