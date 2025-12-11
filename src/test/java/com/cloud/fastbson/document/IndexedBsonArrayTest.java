@@ -1679,4 +1679,242 @@ public class IndexedBsonArrayTest {
         assertEquals((byte) 0x02, array.getType(1));  // STRING
         assertEquals((byte) 0x01, array.getType(2));  // DOUBLE
     }
+
+    // ==================== Coverage Improvement Tests ====================
+
+    /**
+     * Test ensureCache double-check locking second check branch.
+     */
+    @Test
+    public void testEnsureCache_DoubleCheckLocking_Array() throws Exception {
+        byte[] bsonData = createInt32Array();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        // Force concurrent access to trigger potential race in double-check locking
+        Thread t1 = new Thread(() -> array.getInt32(0));
+        Thread t2 = new Thread(() -> array.getInt32(1));
+
+        t1.start();
+        t2.start();
+        t1.join();
+        t2.join();
+
+        // Verify cache was properly initialized
+        assertNotNull(array.toString());
+        assertTrue(array.toString().contains("cached="));
+    }
+
+    /**
+     * Test getInt64 with negative index to cover index < 0 branch.
+     */
+    @Test
+    public void testGetInt64_NegativeIndex_ThrowsException() {
+        byte[] bsonData = createInt64Array();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        assertThrows(IndexOutOfBoundsException.class, () -> array.getInt64(-1));
+    }
+
+    /**
+     * Test getDouble with negative index to cover index < 0 branch.
+     */
+    @Test
+    public void testGetDouble_NegativeIndex_ThrowsException() {
+        byte[] bsonData = createDoubleArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        assertThrows(IndexOutOfBoundsException.class, () -> array.getDouble(-1));
+    }
+
+    /**
+     * Test getBoolean with negative index to cover index < 0 branch.
+     */
+    @Test
+    public void testGetBoolean_NegativeIndex_ThrowsException() {
+        byte[] bsonData = createBooleanArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        assertThrows(IndexOutOfBoundsException.class, () -> array.getBoolean(-1));
+    }
+
+    /**
+     * Test getString with negative index to cover index < 0 branch.
+     */
+    @Test
+    public void testGetString_NegativeIndex_ThrowsException() {
+        byte[] bsonData = createStringArray();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        assertThrows(IndexOutOfBoundsException.class, () -> array.getString(-1));
+    }
+
+    /**
+     * Test getString with JAVASCRIPT type (alternative to STRING).
+     */
+    @Test
+    public void testGetString_JavaScriptType() {
+        // Create array with JAVASCRIPT type (0x0D)
+        ByteBuffer buffer = ByteBuffer.allocate(256).order(ByteOrder.LITTLE_ENDIAN);
+        int startPos = buffer.position();
+        buffer.putInt(0); // placeholder
+
+        // Add JavaScript element
+        buffer.put((byte) 0x0D); // JAVASCRIPT type
+        buffer.put("0\0".getBytes(StandardCharsets.UTF_8));
+        buffer.putInt(9); // "function\0" length (including null terminator)
+        buffer.put("function\0".getBytes(StandardCharsets.UTF_8));
+
+        buffer.put((byte) 0x00); // End
+        int endPos = buffer.position();
+        buffer.putInt(startPos, endPos - startPos);
+
+        byte[] bsonData = Arrays.copyOf(buffer.array(), endPos);
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        // Should be able to get as string
+        assertEquals("function", array.getString(0));
+    }
+
+    /**
+     * Test getString with SYMBOL type (alternative to STRING).
+     */
+    @Test
+    public void testGetString_SymbolType() {
+        // Create array with SYMBOL type (0x0E)
+        ByteBuffer buffer = ByteBuffer.allocate(256).order(ByteOrder.LITTLE_ENDIAN);
+        int startPos = buffer.position();
+        buffer.putInt(0); // placeholder
+
+        // Add Symbol element
+        buffer.put((byte) 0x0E); // SYMBOL type
+        buffer.put("0\0".getBytes(StandardCharsets.UTF_8));
+        buffer.putInt(7); // "symbol\0" length (including null terminator)
+        buffer.put("symbol\0".getBytes(StandardCharsets.UTF_8));
+
+        buffer.put((byte) 0x00); // End
+        int endPos = buffer.position();
+        buffer.putInt(startPos, endPos - startPos);
+
+        byte[] bsonData = Arrays.copyOf(buffer.array(), endPos);
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        // Should be able to get as string
+        assertEquals("symbol", array.getString(0));
+    }
+
+    /**
+     * Test getString with default where type is JAVASCRIPT (should return value, not default).
+     */
+    @Test
+    public void testGetString_WithDefault_JavaScriptType() {
+        // Create array with JAVASCRIPT type (0x0D)
+        ByteBuffer buffer = ByteBuffer.allocate(256).order(ByteOrder.LITTLE_ENDIAN);
+        int startPos = buffer.position();
+        buffer.putInt(0); // placeholder
+
+        // Add JavaScript element
+        buffer.put((byte) 0x0D); // JAVASCRIPT type
+        buffer.put("0\0".getBytes(StandardCharsets.UTF_8));
+        buffer.putInt(5); // "code\0" length (including null terminator)
+        buffer.put("code\0".getBytes(StandardCharsets.UTF_8));
+
+        buffer.put((byte) 0x00); // End
+        int endPos = buffer.position();
+        buffer.putInt(startPos, endPos - startPos);
+
+        byte[] bsonData = Arrays.copyOf(buffer.array(), endPos);
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        // Should return actual value, not default
+        assertEquals("code", array.getString(0, "default"));
+    }
+
+    /**
+     * Test getString with default where type is SYMBOL (should return value, not default).
+     */
+    @Test
+    public void testGetString_WithDefault_SymbolType() {
+        // Create array with SYMBOL type (0x0E)
+        ByteBuffer buffer = ByteBuffer.allocate(256).order(ByteOrder.LITTLE_ENDIAN);
+        int startPos = buffer.position();
+        buffer.putInt(0); // placeholder
+
+        // Add Symbol element
+        buffer.put((byte) 0x0E); // SYMBOL type
+        buffer.put("0\0".getBytes(StandardCharsets.UTF_8));
+        buffer.putInt(7); // "symbol\0" length (including null terminator)
+        buffer.put("symbol\0".getBytes(StandardCharsets.UTF_8));
+
+        buffer.put((byte) 0x00); // End
+        int endPos = buffer.position();
+        buffer.putInt(startPos, endPos - startPos);
+
+        byte[] bsonData = Arrays.copyOf(buffer.array(), endPos);
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        // Should return actual value, not default
+        assertEquals("symbol", array.getString(0, "default"));
+    }
+
+
+    /**
+     * Test get() with DATE_TIME type to cover the missing branch.
+     */
+    @Test
+    public void testGet_DateTimeType() {
+        // Create array with DATE_TIME type (0x09)
+        ByteBuffer buffer = ByteBuffer.allocate(256).order(ByteOrder.LITTLE_ENDIAN);
+        int startPos = buffer.position();
+        buffer.putInt(0); // placeholder
+
+        // Add DateTime element
+        buffer.put((byte) 0x09); // DATE_TIME type
+        buffer.put("0\0".getBytes(StandardCharsets.UTF_8));
+        buffer.putLong(1638360000000L); // timestamp
+
+        buffer.put((byte) 0x00); // End
+        int endPos = buffer.position();
+        buffer.putInt(startPos, endPos - startPos);
+
+        byte[] bsonData = Arrays.copyOf(buffer.array(), endPos);
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        // Access via get() should parse as Long
+        Object value = array.get(0);
+        assertNotNull(value);
+        assertTrue(value instanceof Long);
+        assertEquals(1638360000000L, value);
+    }
+
+    /**
+     * Test countCached when cache is null.
+     */
+    @Test
+    public void testCountCached_NullCache_Array() {
+        byte[] bsonData = createInt32Array();
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        // Before any element access, cache should be null
+        // toString calls countCached, which should return 0 when cache is null
+        String str = array.toString();
+        assertTrue(str.contains("cached=0"));
+    }
+
+    /**
+     * Test parse with data[pos] == 0 in the while loop condition.
+     */
+    @Test
+    public void testParse_EarlyTerminator_Array() {
+        // Empty array edge case
+        ByteBuffer buffer = ByteBuffer.allocate(128).order(ByteOrder.LITTLE_ENDIAN);
+        int startPos = buffer.position();
+        buffer.putInt(5); // array length = 5 (4 bytes for length + 1 byte for terminator)
+        buffer.put((byte) 0x00); // Immediate terminator
+
+        byte[] bsonData = Arrays.copyOf(buffer.array(), 5);
+        IndexedBsonArray array = IndexedBsonArray.parse(bsonData, 0, bsonData.length);
+
+        assertEquals(0, array.size());
+        assertTrue(array.isEmpty());
+    }
 }

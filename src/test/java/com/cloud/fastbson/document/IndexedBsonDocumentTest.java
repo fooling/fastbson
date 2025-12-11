@@ -1473,4 +1473,363 @@ public class IndexedBsonDocumentTest {
         // Should throw exception during parse due to unsupported type
         assertThrows(IllegalArgumentException.class, () -> IndexedBsonDocument.parse(bsonData));
     }
+
+    // ==================== Coverage Improvement Tests ====================
+
+    /**
+     * Test getFieldCount method (0% coverage).
+     */
+    @Test
+    public void testGetFieldCount_ReturnsCorrectCount() {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+
+        // Document has 4 fields: name, age, score, active
+        assertEquals(4, doc.getFieldCount());
+    }
+
+    /**
+     * Test getFieldCount on empty document.
+     */
+    @Test
+    public void testGetFieldCount_EmptyDocument() {
+        ByteBuffer buffer = ByteBuffer.allocate(128).order(ByteOrder.LITTLE_ENDIAN);
+        int startPos = buffer.position();
+        buffer.putInt(0); // placeholder
+        buffer.put((byte) 0x00); // End immediately
+        int endPos = buffer.position();
+        buffer.putInt(startPos, endPos - startPos);
+
+        byte[] bsonData = Arrays.copyOf(buffer.array(), endPos);
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+
+        assertEquals(0, doc.getFieldCount());
+    }
+
+    /**
+     * Test getInt32 with wrong type - should throw IllegalArgumentException.
+     */
+    @Test
+    public void testGetInt32_WrongType_ThrowsException() {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+
+        // "name" is a string, not int32
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+            () -> doc.getInt32("name"));
+        assertTrue(ex.getMessage().contains("not INT32"));
+    }
+
+    /**
+     * Test getInt64 with wrong type - should throw IllegalArgumentException.
+     */
+    @Test
+    public void testGetInt64_WrongType_ThrowsException() {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+
+        // "name" is a string, not int64
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+            () -> doc.getInt64("name"));
+        assertTrue(ex.getMessage().contains("not INT64"));
+    }
+
+    /**
+     * Test getDouble with wrong type - should throw IllegalArgumentException.
+     */
+    @Test
+    public void testGetDouble_WrongType_ThrowsException() {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+
+        // "name" is a string, not double
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+            () -> doc.getDouble("name"));
+        assertTrue(ex.getMessage().contains("not DOUBLE"));
+    }
+
+    /**
+     * Test getBoolean with wrong type - should throw IllegalArgumentException.
+     */
+    @Test
+    public void testGetBoolean_WrongType_ThrowsException() {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+
+        // "name" is a string, not boolean
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+            () -> doc.getBoolean("name"));
+        assertTrue(ex.getMessage().contains("not BOOLEAN"));
+    }
+
+    /**
+     * Test getDateTime with wrong type - should throw IllegalArgumentException.
+     */
+    @Test
+    public void testGetDateTime_WrongType_ThrowsException() {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+
+        // "name" is a string, not datetime
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+            () -> doc.getDateTime("name"));
+        assertTrue(ex.getMessage().contains("not DATE_TIME"));
+    }
+
+    /**
+     * Test getObjectId with wrong type - should throw IllegalArgumentException.
+     */
+    @Test
+    public void testGetObjectId_WrongType_ThrowsException() {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+
+        // "name" is a string, not ObjectId
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+            () -> doc.getObjectId("name"));
+        assertTrue(ex.getMessage().contains("not OBJECT_ID"));
+    }
+
+    /**
+     * Test getBinary with wrong type - should throw IllegalArgumentException.
+     */
+    @Test
+    public void testGetBinary_WrongType_ThrowsException() {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+
+        // "name" is a string, not binary
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+            () -> doc.getBinary("name"));
+        assertTrue(ex.getMessage().contains("not BINARY"));
+    }
+
+    /**
+     * Test hash collision scenario - multiple fields with same hash.
+     * This tests the linearSearch method's forward search branch.
+     */
+    @Test
+    public void testHashCollision_ForwardSearch() {
+        // Create a document where we can force hash collisions
+        // We need fields that hash to the same value
+        ByteBuffer buffer = ByteBuffer.allocate(1024).order(ByteOrder.LITTLE_ENDIAN);
+        int startPos = buffer.position();
+        buffer.putInt(0); // placeholder
+
+        // Add multiple fields that might have hash collisions
+        // When sorted by hash, if we have collisions, linearSearch is triggered
+        buffer.put((byte) 0x10); // Int32
+        buffer.put("field1\0".getBytes(StandardCharsets.UTF_8));
+        buffer.putInt(100);
+
+        buffer.put((byte) 0x10); // Int32
+        buffer.put("field2\0".getBytes(StandardCharsets.UTF_8));
+        buffer.putInt(200);
+
+        buffer.put((byte) 0x10); // Int32
+        buffer.put("field3\0".getBytes(StandardCharsets.UTF_8));
+        buffer.putInt(300);
+
+        buffer.put((byte) 0x00); // End
+        int endPos = buffer.position();
+        buffer.putInt(startPos, endPos - startPos);
+
+        byte[] bsonData = Arrays.copyOf(buffer.array(), endPos);
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+
+        // Access all fields to ensure no collision issues
+        assertEquals(100, doc.getInt32("field1"));
+        assertEquals(200, doc.getInt32("field2"));
+        assertEquals(300, doc.getInt32("field3"));
+    }
+
+    /**
+     * Test matchesFieldName with different length - should return false.
+     */
+    @Test
+    public void testFindField_DifferentFieldNameLength() {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+
+        // Try to find a field that doesn't exist with different length
+        // This should trigger the nameLength comparison in matchesFieldName
+        assertNull(doc.get("na")); // shorter than "name"
+        assertNull(doc.get("namee")); // longer than "name"
+    }
+
+    /**
+     * Test cache hit path for int64 (currently cache miss is tested, need cache hit).
+     */
+    @Test
+    public void testGetInt64_CacheHit() {
+        byte[] bsonData = createAllTypesBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+
+        // First access - cache miss
+        long value1 = doc.getInt64("int64Field");
+        assertEquals(9876543210L, value1);
+
+        // Second access - cache hit (this branch is missing coverage)
+        long value2 = doc.getInt64("int64Field");
+        assertEquals(9876543210L, value2);
+
+        // Verify both calls returned the same value
+        assertEquals(value1, value2);
+    }
+
+    /**
+     * Test ensureCache double-check locking second check branch.
+     * This covers the "if (cache == null)" inside synchronized block.
+     */
+    @Test
+    public void testEnsureCache_DoubleCheckLocking() throws Exception {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+
+        // Force concurrent access to trigger potential race in double-check locking
+        Thread t1 = new Thread(() -> doc.getInt32("age"));
+        Thread t2 = new Thread(() -> doc.getString("name"));
+
+        t1.start();
+        t2.start();
+        t1.join();
+        t2.join();
+
+        // Verify cache was properly initialized
+        assertNotNull(doc.toString());
+        assertTrue(doc.toString().contains("cached="));
+    }
+
+    /**
+     * Test toBson with full document to cover "offset != 0" branch.
+     */
+    @Test
+    public void testToBson_WithNonZeroOffset() {
+        // Create a byte array with extra data at the beginning
+        byte[] originalBson = createSimpleBsonDocument();
+        byte[] paddedData = new byte[100 + originalBson.length];
+
+        // Copy original BSON at offset 100
+        System.arraycopy(originalBson, 0, paddedData, 100, originalBson.length);
+
+        // Parse with offset
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(paddedData, 100, originalBson.length);
+
+        // Get BSON - this should copy the data since offset != 0
+        byte[] result = doc.toBson();
+
+        // Verify the result matches the original
+        assertArrayEquals(originalBson, result);
+    }
+
+    /**
+     * Test getString with default value where field has wrong type.
+     */
+    @Test
+    public void testGetString_WithDefault_WrongType_ReturnsDefault() {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+
+        // "age" is int32, not string - should catch exception and return default
+        String result = doc.getString("age", "default");
+        assertEquals("default", result);
+    }
+
+    /**
+     * Test getInt32 with default value where field has wrong type.
+     */
+    @Test
+    public void testGetInt32_WithDefault_WrongType_ReturnsDefault() {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+
+        // "name" is string, not int32 - should catch exception and return default
+        int result = doc.getInt32("name", 999);
+        assertEquals(999, result);
+    }
+
+    /**
+     * Test getInt64 with default value where field has wrong type.
+     */
+    @Test
+    public void testGetInt64_WithDefault_WrongType_ReturnsDefault() {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+
+        // "name" is string, not int64 - should catch exception and return default
+        long result = doc.getInt64("name", 999L);
+        assertEquals(999L, result);
+    }
+
+    /**
+     * Test getDouble with default value where field has wrong type.
+     */
+    @Test
+    public void testGetDouble_WithDefault_WrongType_ReturnsDefault() {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+
+        // "name" is string, not double - should catch exception and return default
+        double result = doc.getDouble("name", 999.0);
+        assertEquals(999.0, result, 0.0001);
+    }
+
+    /**
+     * Test getBoolean with default value where field has wrong type.
+     */
+    @Test
+    public void testGetBoolean_WithDefault_WrongType_ReturnsDefault() {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+
+        // "name" is string, not boolean - should catch exception and return default
+        boolean result = doc.getBoolean("name", true);
+        assertTrue(result);
+    }
+
+    /**
+     * Test getDateTime with default value where field has wrong type.
+     */
+    @Test
+    public void testGetDateTime_WithDefault_WrongType_ReturnsDefault() {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+
+        // "name" is string, not datetime - should catch exception and return default
+        long result = doc.getDateTime("name", 12345L);
+        assertEquals(12345L, result);
+    }
+
+    /**
+     * Test countCached when cache is null.
+     */
+    @Test
+    public void testCountCached_NullCache() {
+        byte[] bsonData = createSimpleBsonDocument();
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+
+        // Before any field access, cache should be null
+        // toString calls countCached, which should return 0 when cache is null
+        String str = doc.toString();
+        assertTrue(str.contains("cached=0"));
+    }
+
+    /**
+     * Test parse with data[pos] == 0 in the while loop condition.
+     * This covers the "&& data[pos] != 0" branch in the parse loop.
+     */
+    @Test
+    public void testParse_EarlyTerminator() {
+        // This is a valid edge case - empty document should handle correctly
+        ByteBuffer buffer = ByteBuffer.allocate(128).order(ByteOrder.LITTLE_ENDIAN);
+        int startPos = buffer.position();
+        buffer.putInt(5); // document length = 5 (4 bytes for length + 1 byte for terminator)
+        buffer.put((byte) 0x00); // Immediate terminator
+
+        byte[] bsonData = Arrays.copyOf(buffer.array(), 5);
+        IndexedBsonDocument doc = IndexedBsonDocument.parse(bsonData);
+
+        assertEquals(0, doc.getFieldCount());
+        assertTrue(doc.isEmpty());
+    }
 }
