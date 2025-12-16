@@ -138,9 +138,8 @@ public class IndexedBsonArray implements BsonArray {
     private void ensureCache() {
         if (cache == null) {
             synchronized (this) {
-                if (cache == null) {
-                    cache = new Object[elements.length];
-                }
+                // Outer check guarantees cache is null here - no need for redundant check
+                cache = new Object[elements.length];
             }
         }
     }
@@ -497,7 +496,7 @@ public class IndexedBsonArray implements BsonArray {
     }
 
     private int countCached() {
-        if (cache == null) return 0;
+        // Only called when cache != null (checked by caller in toString)
         int count = 0;
         for (Object o : cache) {
             if (o != null) count++;

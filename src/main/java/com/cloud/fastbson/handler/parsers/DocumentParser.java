@@ -203,10 +203,17 @@ public enum DocumentParser implements BsonTypeParser {
         java.util.Map<String, Object> data = new java.util.HashMap<String, Object>();
         java.util.Map<String, Byte> types = new java.util.HashMap<String, Byte>();
 
-        while (reader.position() < endPosition) {
+        // Parse fields until we hit the END_OF_DOCUMENT marker (0x00)
+        // Well-formed BSON always has this terminator
+        while (true) {
+            // Safety check: prevent reading beyond document boundary
+            if (reader.position() >= endPosition) {
+                break;  // Malformed BSON without terminator
+            }
+
             byte type = reader.readByte();
             if (type == BsonType.END_OF_DOCUMENT) {
-                break;
+                break;  // Normal termination
             }
 
             String fieldName = reader.readCString();
