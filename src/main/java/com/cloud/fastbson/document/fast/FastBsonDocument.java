@@ -215,8 +215,14 @@ public final class FastBsonDocument implements BsonDocument {
     @Override
     public boolean getBoolean(String fieldName, boolean defaultValue) {
         int fieldId = fieldNameToId.getInt(fieldName);
-        if (fieldId < 0) return defaultValue;
-        if (!booleanExists.get(fieldId)) return defaultValue;
+        if (fieldId < 0) {
+            return defaultValue;  // Field doesn't exist
+        }
+        // Check if field is actually a boolean type
+        if (!booleanExists.get(fieldId)) {
+            return defaultValue;  // Field exists but is not a boolean
+        }
+        // Field exists and is a boolean - return the actual value
         return booleanFields.get(fieldId);
     }
 

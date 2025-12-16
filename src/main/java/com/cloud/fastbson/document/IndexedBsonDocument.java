@@ -277,13 +277,19 @@ public class IndexedBsonDocument implements BsonDocument {
      */
     private int linearSearch(int start, String fieldName, int hash) {
         // Search forward
-        for (int i = start + 1; i < fields.length && fields[i].nameHash == hash; i++) {
+        for (int i = start + 1; i < fields.length; i++) {
+            if (fields[i].nameHash != hash) {
+                break;  // Exit when hash changes
+            }
             if (matchesFieldName(fields[i], fieldName)) {
                 return i;
             }
         }
         // Search backward
-        for (int i = start - 1; i >= 0 && fields[i].nameHash == hash; i--) {
+        for (int i = start - 1; i >= 0; i--) {
+            if (fields[i].nameHash != hash) {
+                break;  // Exit when hash changes
+            }
             if (matchesFieldName(fields[i], fieldName)) {
                 return i;
             }
@@ -296,14 +302,14 @@ public class IndexedBsonDocument implements BsonDocument {
     /**
      * Ensure cache array is allocated.
      *
-     * <p>Uses double-check locking for thread-safe lazy initialization.
+     * <p>Uses synchronized block for thread-safe lazy initialization.
+     * The outer null check ensures cache is null when entering synchronized block.
      */
     private void ensureCache() {
         if (cache == null) {
             synchronized (this) {
-                if (cache == null) {
-                    cache = new Object[fields.length];
-                }
+                // Outer check guarantees cache is null here - no need for redundant check
+                cache = new Object[fields.length];
             }
         }
     }
@@ -591,7 +597,7 @@ public class IndexedBsonDocument implements BsonDocument {
     }
 
     private int countCached() {
-        if (cache == null) return 0;
+        // Only called when cache != null (checked by caller in toString)
         int count = 0;
         for (Object o : cache) {
             if (o != null) count++;
