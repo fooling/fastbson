@@ -1,9 +1,10 @@
 package com.cloud.fastbson.matcher;
 
+import com.cloud.fastbson.util.StringPool;
+
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 字段匹配器，用于判断 BSON 字段是否为目标字段。
@@ -30,12 +31,6 @@ public class FieldMatcher {
      * 小字段集阈值：字段数量小于此值时使用数组查找
      */
     private static final int SMALL_SET_THRESHOLD = 10;
-
-    /**
-     * 字段名内部化池（全局共享，线程安全）
-     */
-    private static final ConcurrentHashMap<String, String> FIELD_NAME_POOL =
-        new ConcurrentHashMap<String, String>(256);
 
     /**
      * 目标字段数组（用于小字段集线性查找）
@@ -179,22 +174,14 @@ public class FieldMatcher {
      * @return 内部化后的字段名
      */
     private static String internFieldName(String fieldName) {
-        // 尝试从池中获取
-        String interned = FIELD_NAME_POOL.get(fieldName);
-        if (interned != null) {
-            return interned;
-        }
-
-        // 池中没有，放入池中
-        FIELD_NAME_POOL.putIfAbsent(fieldName, fieldName);
-        return FIELD_NAME_POOL.get(fieldName);
+        return StringPool.intern(fieldName);
     }
 
     /**
      * 清空字段名内部化池（用于测试或内存清理）
      */
     public static void clearFieldNamePool() {
-        FIELD_NAME_POOL.clear();
+        StringPool.clear();
     }
 
     /**
@@ -203,6 +190,6 @@ public class FieldMatcher {
      * @return 字段名池中的字符串数量
      */
     public static int getFieldNamePoolSize() {
-        return FIELD_NAME_POOL.size();
+        return StringPool.getPoolSize();
     }
 }
