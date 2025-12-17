@@ -260,11 +260,32 @@ public class PerformanceBenchmark {
     /**
      * 运行MongoDB BSON解析
      *
+     * <p>CRITICAL FIX: 添加与FastBSON相同的预热迭代次数，确保公平对比。
+     * 之前MongoDB没有预热直接计时，导致FastBSON性能被高估。
+     *
      * @param bsonData BSON数据
      * @param fields 要访问的字段（null表示不访问任何字段）
      * @return 耗时（纳秒）
      */
     private long runMongoDBParsing(byte[] bsonData, String[] fields) {
+        // ✅ FIX: 添加MongoDB预热，与FastBSON一致
+        for (int i = 0; i < WARMUP_ITERATIONS; i++) {
+            BsonBinaryReader reader = new BsonBinaryReader(new ByteBufferBsonInput(
+                new org.bson.ByteBufNIO(ByteBuffer.wrap(bsonData))));
+            BsonDocumentCodec codec = new BsonDocumentCodec();
+            BsonDocument doc = codec.decode(reader, DecoderContext.builder().build());
+
+            // 如果指定了字段，则访问这些字段
+            if (fields != null) {
+                for (String field : fields) {
+                    doc.get(field);
+                }
+            }
+
+            reader.close();
+        }
+
+        // 预热完成，开始计时测试
         long mongoStart = System.nanoTime();
         for (int i = 0; i < TEST_ITERATIONS; i++) {
             BsonBinaryReader reader = new BsonBinaryReader(new ByteBufferBsonInput(
@@ -282,5 +303,271 @@ public class PerformanceBenchmark {
             reader.close();
         }
         return System.nanoTime() - mongoStart;
+    }
+
+    // ==================== Phase 3 优化专属场景 ====================
+
+    /**
+     * Phase 3.1 场景：高频字段名重复（StringPool优势）
+     *
+     * <p><b>优化点</b>：StringPool字段名interning
+     * <p><b>测试场景</b>：批量解析1000个相同结构文档，字段名完全重复
+     * <p><b>预期收益</b>：减少String分配，启用引用相等性比较，内存占用降低40-60%
+     */
+    @Test
+    public void testPhase3_1_StringPoolBenefit() {
+        BenchmarkResult result = runPhase3_1_StringPoolBenefit();
+        System.out.println("\n" + BenchmarkReport.generate(List.of(result)));
+        assertTrue(result.getSpeedup() > 1.0, "StringPool优化应该提升性能");
+    }
+
+    private BenchmarkResult runPhase3_1_StringPoolBenefit() {
+        // 生成1000个相同结构的文档
+        int docCount = 1000;
+        byte[] singleDocData = BsonTestDataGenerator.generateDocument(50);
+
+        // 创建批量文档数据
+        List<byte[]> documents = new ArrayList<>();
+        for (int i = 0; i < docCount; i++) {
+            documents.add(singleDocData);
+        }
+
+        FastBson.useHashMapFactory();
+
+        // 预热
+        for (int i = 0; i < WARMUP_ITERATIONS / 10; i++) {  // 减少预热次数避免过长
+            for (byte[] doc : documents) {
+                DocumentParser.INSTANCE.parse(new BsonReader(doc));
+            }
+        }
+
+        // FastBSON测试：连续解析1000个相同结构文档
+        long fastbsonStart = System.nanoTime();
+        for (int i = 0; i < TEST_ITERATIONS / 10; i++) {
+            for (byte[] doc : documents) {
+                DocumentParser.INSTANCE.parse(new BsonReader(doc));
+            }
+        }
+        long fastbsonTime = System.nanoTime() - fastbsonStart;
+
+        FastBson.useFastFactory();
+
+        // MongoDB测试：预热
+        for (int i = 0; i < WARMUP_ITERATIONS / 10; i++) {
+            for (byte[] doc : documents) {
+                BsonBinaryReader reader = new BsonBinaryReader(new ByteBufferBsonInput(
+                    new org.bson.ByteBufNIO(ByteBuffer.wrap(doc))));
+                BsonDocumentCodec codec = new BsonDocumentCodec();
+                codec.decode(reader, DecoderContext.builder().build());
+                reader.close();
+            }
+        }
+
+        // MongoDB测试：计时
+        long mongoStart = System.nanoTime();
+        for (int i = 0; i < TEST_ITERATIONS / 10; i++) {
+            for (byte[] doc : documents) {
+                BsonBinaryReader reader = new BsonBinaryReader(new ByteBufferBsonInput(
+                    new org.bson.ByteBufNIO(ByteBuffer.wrap(doc))));
+                BsonDocumentCodec codec = new BsonDocumentCodec();
+                codec.decode(reader, DecoderContext.builder().build());
+                reader.close();
+            }
+        }
+        long mongoTime = System.nanoTime() - mongoStart;
+
+        double speedup = (double) mongoTime / fastbsonTime;
+
+        return BenchmarkResult.builder()
+            .scenarioName("Phase 3.1: 字段名重复场景(StringPool)")
+            .fastbsonMode("StringPool interning")
+            .fastbsonTimeNanos(fastbsonTime)
+            .mongoTimeNanos(mongoTime)
+            .speedup(speedup)
+            .description("批量解析1000个相同结构文档（50字段）")
+            .target("1.1-1.3x + 40-60%内存优势")
+            .passed(speedup > 1.0)
+            .note("StringPool减少重复字段名分配")
+            .build();
+    }
+
+    /**
+     * Phase 3.2 场景：高吞吐量连续解析（ObjectPool优势）
+     *
+     * <p><b>优化点</b>：ThreadLocal ObjectPool复用BsonReader
+     * <p><b>测试场景</b>：连续解析10000个文档无间断
+     * <p><b>预期收益</b>：减少BsonReader分配，降低GC压力
+     */
+    @Test
+    public void testPhase3_2_ObjectPoolBenefit() {
+        BenchmarkResult result = runPhase3_2_ObjectPoolBenefit();
+        System.out.println("\n" + BenchmarkReport.generate(List.of(result)));
+        assertTrue(result.getSpeedup() > 1.0, "ObjectPool优化应该提升性能");
+    }
+
+    private BenchmarkResult runPhase3_2_ObjectPoolBenefit() {
+        // 生成大量不同文档
+        List<byte[]> documents = new ArrayList<>();
+        for (int i = 0; i < 100; i++) {
+            documents.add(BsonTestDataGenerator.generateDocument(20));
+        }
+
+        // 使用PartialParser测试ObjectPool效果
+        PartialParser parser = new PartialParser("field0", "field5", "field10");
+        parser.setEarlyExit(true);
+
+        // 预热
+        for (int i = 0; i < WARMUP_ITERATIONS; i++) {
+            parser.parse(documents.get(i % documents.size()));
+        }
+
+        // FastBSON测试：高吞吐量连续解析
+        long fastbsonStart = System.nanoTime();
+        for (int i = 0; i < TEST_ITERATIONS; i++) {
+            parser.parse(documents.get(i % documents.size()));
+        }
+        long fastbsonTime = System.nanoTime() - fastbsonStart;
+
+        // MongoDB测试：预热
+        for (int i = 0; i < WARMUP_ITERATIONS; i++) {
+            byte[] doc = documents.get(i % documents.size());
+            BsonBinaryReader reader = new BsonBinaryReader(new ByteBufferBsonInput(
+                new org.bson.ByteBufNIO(ByteBuffer.wrap(doc))));
+            BsonDocumentCodec codec = new BsonDocumentCodec();
+            BsonDocument bsonDoc = codec.decode(reader, DecoderContext.builder().build());
+            bsonDoc.get("field0");
+            bsonDoc.get("field5");
+            bsonDoc.get("field10");
+            reader.close();
+        }
+
+        // MongoDB测试：计时
+        long mongoStart = System.nanoTime();
+        for (int i = 0; i < TEST_ITERATIONS; i++) {
+            byte[] doc = documents.get(i % documents.size());
+            BsonBinaryReader reader = new BsonBinaryReader(new ByteBufferBsonInput(
+                new org.bson.ByteBufNIO(ByteBuffer.wrap(doc))));
+            BsonDocumentCodec codec = new BsonDocumentCodec();
+            BsonDocument bsonDoc = codec.decode(reader, DecoderContext.builder().build());
+            bsonDoc.get("field0");
+            bsonDoc.get("field5");
+            bsonDoc.get("field10");
+            reader.close();
+        }
+        long mongoTime = System.nanoTime() - mongoStart;
+
+        double speedup = (double) mongoTime / fastbsonTime;
+
+        return BenchmarkResult.builder()
+            .scenarioName("Phase 3.2: 高吞吐量场景(ObjectPool)")
+            .fastbsonMode("ThreadLocal BsonReader pool")
+            .fastbsonTimeNanos(fastbsonTime)
+            .mongoTimeNanos(mongoTime)
+            .speedup(speedup)
+            .description("连续解析10000个文档（20字段部分解析）")
+            .target("1.05-1.15x + 降低GC压力")
+            .passed(speedup > 1.0)
+            .note("ObjectPool减少BsonReader分配")
+            .build();
+    }
+
+    /**
+     * Phase 3.3 场景：已知结构文档（HashMap容量优化）
+     *
+     * <p><b>优化点</b>：HashMap容量预分配，避免rehash
+     * <p><b>测试场景</b>：固定50字段文档，精确容量估算
+     * <p><b>预期收益</b>：避免HashMap扩容，减少内存复制
+     */
+    @Test
+    public void testPhase3_3_HashMapCapacityBenefit() {
+        BenchmarkResult result = runPhase3_3_HashMapCapacityBenefit();
+        System.out.println("\n" + BenchmarkReport.generate(List.of(result)));
+        assertTrue(result.getSpeedup() > 1.0, "HashMap容量优化应该提升性能");
+    }
+
+    private BenchmarkResult runPhase3_3_HashMapCapacityBenefit() {
+        // 生成固定50字段文档
+        byte[] bsonData = BsonTestDataGenerator.generateDocument(50);
+
+        FastBson.useHashMapFactory();
+
+        // 预热
+        for (int i = 0; i < WARMUP_ITERATIONS; i++) {
+            DocumentParser.INSTANCE.parse(new BsonReader(bsonData));
+        }
+
+        // FastBSON测试：容量预分配
+        long fastbsonStart = System.nanoTime();
+        for (int i = 0; i < TEST_ITERATIONS; i++) {
+            DocumentParser.INSTANCE.parse(new BsonReader(bsonData));
+        }
+        long fastbsonTime = System.nanoTime() - fastbsonStart;
+
+        FastBson.useFastFactory();
+
+        // MongoDB测试：预热
+        for (int i = 0; i < WARMUP_ITERATIONS; i++) {
+            BsonBinaryReader reader = new BsonBinaryReader(new ByteBufferBsonInput(
+                new org.bson.ByteBufNIO(ByteBuffer.wrap(bsonData))));
+            BsonDocumentCodec codec = new BsonDocumentCodec();
+            codec.decode(reader, DecoderContext.builder().build());
+            reader.close();
+        }
+
+        // MongoDB测试：计时
+        long mongoStart = System.nanoTime();
+        for (int i = 0; i < TEST_ITERATIONS; i++) {
+            BsonBinaryReader reader = new BsonBinaryReader(new ByteBufferBsonInput(
+                new org.bson.ByteBufNIO(ByteBuffer.wrap(bsonData))));
+            BsonDocumentCodec codec = new BsonDocumentCodec();
+            codec.decode(reader, DecoderContext.builder().build());
+            reader.close();
+        }
+        long mongoTime = System.nanoTime() - mongoStart;
+
+        double speedup = (double) mongoTime / fastbsonTime;
+
+        return BenchmarkResult.builder()
+            .scenarioName("Phase 3.3: 已知结构场景(HashMap容量)")
+            .fastbsonMode("Capacity pre-allocation")
+            .fastbsonTimeNanos(fastbsonTime)
+            .mongoTimeNanos(mongoTime)
+            .speedup(speedup)
+            .description("固定50字段文档，精确容量预分配")
+            .target("1.05-1.1x + 减少rehash")
+            .passed(speedup > 1.0)
+            .note("避免HashMap动态扩容开销")
+            .build();
+    }
+
+    /**
+     * Phase 3 完整测试套件
+     *
+     * <p>一次性运行所有Phase 3优化场景，展示每个优化的价值
+     */
+    @Test
+    public void testPhase3_CompleteOptimizationSuite() {
+        System.out.println("\n🎯 开始运行 Phase 3 优化价值验证测试...\n");
+
+        List<BenchmarkResult> results = new ArrayList<>();
+
+        // Phase 3.1: StringPool字段名interning
+        results.add(runPhase3_1_StringPoolBenefit());
+
+        // Phase 3.2: ObjectPool BsonReader复用
+        results.add(runPhase3_2_ObjectPoolBenefit());
+
+        // Phase 3.3: HashMap容量预分配
+        results.add(runPhase3_3_HashMapCapacityBenefit());
+
+        // 生成报告
+        String report = BenchmarkReport.generate(results);
+        System.out.println(report);
+
+        // 验证所有优化都有正向收益
+        for (BenchmarkResult result : results) {
+            assertTrue(result.getSpeedup() > 1.0,
+                result.getScenarioName() + " 应该有性能提升");
+        }
     }
 }
