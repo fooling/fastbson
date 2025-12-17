@@ -1,13 +1,17 @@
 package com.cloud.fastbson.parser;
 
+import com.cloud.fastbson.FastBson;
 import com.cloud.fastbson.document.BsonArray;
 import com.cloud.fastbson.document.BsonDocument;
 import com.cloud.fastbson.handler.TypeHandler;
 import com.cloud.fastbson.matcher.FieldMatcher;
+import com.cloud.fastbson.matcher.OrderedFieldMatcher;
 import com.cloud.fastbson.reader.BsonReader;
+import com.cloud.fastbson.schema.SchemaIntrospector;
 import com.cloud.fastbson.skipper.ValueSkipper;
 import com.cloud.fastbson.util.BsonType;
 import com.cloud.fastbson.util.ObjectPool;
+import com.cloud.fastbson.util.SchemaLearner;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -50,7 +54,12 @@ public class PartialParser {
     /**
      * 字段匹配器
      */
-    private final FieldMatcher fieldMatcher;
+    private FieldMatcher fieldMatcher;
+
+    /**
+     * 有序字段匹配器（Phase 3.4 优化）
+     */
+    private OrderedFieldMatcher orderedMatcher;
 
     /**
      * 类型处理器（用于解析匹配的字段）
@@ -63,6 +72,26 @@ public class PartialParser {
     private boolean earlyExit;
 
     /**
+     * Schema ID for auto-learning (Phase 3.4)
+     */
+    private String schemaId;
+
+    /**
+     * Whether auto-learning is enabled (Phase 3.4)
+     */
+    private boolean autoLearn;
+
+    /**
+     * Whether learning has finished (Phase 3.4)
+     */
+    private boolean learningFinished;
+
+    /**
+     * Target fields array (stored for schema learning)
+     */
+    private final String[] targetFieldsArray;
+
+    /**
      * 构造函数（使用字段名数组）
      *
      * @param targetFields 目标字段名数组
@@ -71,9 +100,14 @@ public class PartialParser {
         if (targetFields == null || targetFields.length == 0) {
             throw new IllegalArgumentException("Target fields cannot be null or empty");
         }
+        this.targetFieldsArray = targetFields;
         this.fieldMatcher = new FieldMatcher(targetFields);
+        this.orderedMatcher = null;
         this.typeHandler = new TypeHandler();
         this.earlyExit = true; // 默认启用提前退出
+        this.schemaId = null;
+        this.autoLearn = false;
+        this.learningFinished = false;
     }
 
     /**
@@ -85,18 +119,78 @@ public class PartialParser {
         if (targetFields == null || targetFields.isEmpty()) {
             throw new IllegalArgumentException("Target fields cannot be null or empty");
         }
+        this.targetFieldsArray = targetFields.toArray(new String[0]);
         this.fieldMatcher = new FieldMatcher(targetFields);
+        this.orderedMatcher = null;
         this.typeHandler = new TypeHandler();
         this.earlyExit = true;
+        this.schemaId = null;
+        this.autoLearn = false;
+        this.learningFinished = false;
+    }
+
+    /**
+     * 构造函数（使用Schema Class + 目标字段）
+     *
+     * <p>Phase 3.4: 基于注解的Schema定义，自动从Class提取字段顺序。
+     *
+     * <p><b>用法示例：</b>
+     * <pre>{@code
+     * @BsonSchema("User")
+     * public class UserEntity {
+     *     @BsonField(value = "_id", order = 1)
+     *     private String id;
+     *
+     *     @BsonField(value = "name", order = 2)
+     *     private String name;
+     * }
+     *
+     * // 创建parser
+     * PartialParser parser = new PartialParser(UserEntity.class, "name", "email");
+     * }</pre>
+     *
+     * @param schemaClass Schema类（带@BsonField注解）
+     * @param targetFields 目标字段名数组
+     * @since Phase 3.4
+     */
+    public PartialParser(Class<?> schemaClass, String... targetFields) {
+        if (schemaClass == null) {
+            throw new IllegalArgumentException("Schema class cannot be null");
+        }
+        if (targetFields == null || targetFields.length == 0) {
+            throw new IllegalArgumentException("Target fields cannot be null or empty");
+        }
+
+        this.targetFieldsArray = targetFields;
+        this.typeHandler = new TypeHandler();
+        this.earlyExit = true;
+        this.schemaId = null;
+        this.autoLearn = false;
+        this.learningFinished = false;
+
+        // 从Class提取字段顺序
+        String[] fieldOrder = SchemaIntrospector.getFieldOrder(schemaClass);
+
+        if (fieldOrder != null && fieldOrder.length > 0) {
+            // 有字段顺序信息，使用OrderedFieldMatcher
+            this.orderedMatcher = new OrderedFieldMatcher(targetFields, fieldOrder);
+            this.fieldMatcher = null;
+        } else {
+            // 无字段顺序信息，使用标准FieldMatcher
+            this.fieldMatcher = new FieldMatcher(targetFields);
+            this.orderedMatcher = null;
+        }
     }
 
     /**
      * 设置是否启用提前退出
      *
      * @param earlyExit true 启用，false 禁用
+     * @return this parser for chaining
      */
-    public void setEarlyExit(boolean earlyExit) {
+    public PartialParser setEarlyExit(boolean earlyExit) {
         this.earlyExit = earlyExit;
+        return this;
     }
 
     /**
@@ -106,6 +200,118 @@ public class PartialParser {
      */
     public boolean isEarlyExitEnabled() {
         return earlyExit;
+    }
+
+    /**
+     * References a registered schema for field order optimization.
+     *
+     * <p>The schema must be registered via {@link FastBson#registerSchema(String, String...)}
+     * before calling this method.
+     *
+     * <p><b>Usage:</b>
+     * <pre>{@code
+     * // At startup
+     * FastBson.registerSchema("User", "_id", "name", "age", "email", "city");
+     *
+     * // In code
+     * PartialParser parser = new PartialParser("name", "email")
+     *     .forSchema("User");
+     * }</pre>
+     *
+     * @param schemaName Schema identifier
+     * @return this parser for chaining
+     * @throws IllegalStateException if schema is not registered
+     * @since Phase 3.4
+     */
+    public PartialParser forSchema(String schemaName) {
+        String[] fieldOrder = FastBson.getSchemaFieldOrder(schemaName);
+        if (fieldOrder == null) {
+            throw new IllegalStateException(
+                "Schema not registered: " + schemaName +
+                ". Please call FastBson.registerSchema() first.");
+        }
+        return withFieldOrder(fieldOrder);
+    }
+
+    /**
+     * Sets expected field order for ordered matching optimization.
+     *
+     * <p>This replaces the standard FieldMatcher with OrderedFieldMatcher
+     * for position-based O(1) matching.
+     *
+     * @param fieldOrder Expected field order
+     * @return this parser for chaining
+     * @since Phase 3.4
+     */
+    public PartialParser withFieldOrder(String... fieldOrder) {
+        if (fieldOrder == null || fieldOrder.length == 0) {
+            throw new IllegalArgumentException("Field order cannot be null or empty");
+        }
+        this.orderedMatcher = new OrderedFieldMatcher(targetFieldsArray, fieldOrder);
+        this.fieldMatcher = null; // Use ordered matcher instead
+        return this;
+    }
+
+    /**
+     * Sets schema ID for auto-learning.
+     *
+     * <p>The schema ID is used to cache learned field order for reuse
+     * across parser instances.
+     *
+     * @param schemaId Schema identifier
+     * @return this parser for chaining
+     * @since Phase 3.4
+     */
+    public PartialParser withSchemaId(String schemaId) {
+        this.schemaId = schemaId;
+        return this;
+    }
+
+    /**
+     * Enables auto-learning mode.
+     *
+     * <p>In auto-learning mode, the first document parse will record
+     * field order and cache it for subsequent parses.
+     *
+     * <p><b>Usage:</b>
+     * <pre>{@code
+     * PartialParser parser = new PartialParser("name", "email")
+     *     .withSchemaId("User")
+     *     .enableAutoLearn();
+     *
+     * parser.parse(userData1);  // Learns field order
+     * parser.parse(userData2);  // Uses cached order
+     * }</pre>
+     *
+     * @return this parser for chaining
+     * @since Phase 3.4
+     */
+    public PartialParser enableAutoLearn() {
+        this.autoLearn = true;
+        return this;
+    }
+
+    /**
+     * Manually finishes learning and switches to optimized mode.
+     *
+     * <p>After calling this method, the parser will use the learned
+     * field order for all subsequent parses.
+     *
+     * @return this parser for chaining
+     * @since Phase 3.4
+     */
+    public PartialParser finishLearning() {
+        if (schemaId != null) {
+            SchemaLearner.finishLearning(schemaId);
+            learningFinished = true;
+
+            // Switch to using learned order
+            String[] learnedOrder = SchemaLearner.getLearnedFieldOrder(schemaId);
+            if (learnedOrder != null) {
+                this.withFieldOrder(learnedOrder);
+            }
+        }
+        return this;
     }
 
     /**
@@ -133,8 +339,18 @@ public class PartialParser {
         // 读取文档长度
         reader.readInt32();
 
-        // 目标字段数量（用于提前退出判断和容量估算）
-        int targetFieldCount = fieldMatcher.getTargetFieldCount();
+        // Phase 3.4: Reset ordered matcher if using ordered matching
+        if (orderedMatcher != null) {
+            orderedMatcher.reset();
+        }
+
+        // Determine target field count
+        int targetFieldCount;
+        if (orderedMatcher != null) {
+            targetFieldCount = orderedMatcher.getTargetFieldCount();
+        } else {
+            targetFieldCount = fieldMatcher.getTargetFieldCount();
+        }
 
         // Phase 3 优化：根据目标字段数量预分配容量，避免 rehash
         // 使用负载因子 0.75 计算初始容量
@@ -146,6 +362,9 @@ public class PartialParser {
 
         // 创建 ValueSkipper（用于跳过不需要的字段）
         ValueSkipper skipper = new ValueSkipper(reader);
+
+        // Phase 3.4: Auto-learning flag
+        boolean isLearning = autoLearn && !learningFinished && schemaId != null;
 
         // 遍历文档元素
         while (true) {
@@ -160,8 +379,20 @@ public class PartialParser {
             // 读取字段名
             String fieldName = reader.readCString();
 
+            // Phase 3.4: Record field for learning
+            if (isLearning) {
+                SchemaLearner.observeField(schemaId, fieldName);
+            }
+
             // 判断是否为目标字段
-            if (fieldMatcher.matches(fieldName)) {
+            boolean isMatch;
+            if (orderedMatcher != null) {
+                isMatch = orderedMatcher.matches(fieldName);
+            } else {
+                isMatch = fieldMatcher.matches(fieldName);
+            }
+
+            if (isMatch) {
                 // 解析字段值 (直接使用parser，避免装箱转换)
                 Object value = typeHandler.getParsedValue(reader, type);
                 // 对于BsonDocument/BsonArray，需要转换为普通Object以保持API兼容
@@ -178,13 +409,19 @@ public class PartialParser {
                 foundCount++;
 
                 // 提前退出：如果已找到所有目标字段，立即返回
-                if (earlyExit && foundCount >= targetFieldCount) {
+                // Note: During learning phase, disable early exit to learn full schema
+                if (earlyExit && !isLearning && foundCount >= targetFieldCount) {
                     break;
                 }
             } else {
                 // 跳过不需要的字段值
                 skipper.skipValue(type);
             }
+        }
+
+        // Phase 3.4: Finish learning after first parse
+        if (isLearning) {
+            finishLearning();
         }
 
         return result;

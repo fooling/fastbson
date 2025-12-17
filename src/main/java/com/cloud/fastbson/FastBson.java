@@ -5,7 +5,11 @@ import com.cloud.fastbson.document.BsonDocumentFactory;
 import com.cloud.fastbson.document.IndexedBsonDocument;
 import com.cloud.fastbson.document.fast.FastBsonDocumentFactory;
 import com.cloud.fastbson.handler.parsers.DocumentParser;
+import com.cloud.fastbson.parser.PartialParserBuilder;
 import com.cloud.fastbson.reader.BsonReader;
+
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * FastBson - Main entry point for BSON parsing with zero-copy architecture.
@@ -48,6 +52,16 @@ public class FastBson {
      * Note: Phase 2.16+ uses IndexedBsonDocument directly, bypassing factory.
      */
     private static BsonDocumentFactory defaultFactory = FastBsonDocumentFactory.INSTANCE;
+
+    /**
+     * Global schema registry for field order caching.
+     *
+     * <p>Maps schema name to expected field order array.
+     * Thread-safe for concurrent registration and retrieval.
+     *
+     * @since Phase 3.4
+     */
+    private static final Map<String, String[]> SCHEMA_REGISTRY = new ConcurrentHashMap<String, String[]>();
 
     static {
         // Ensure TypeHandler is loaded and parsers are initialized
@@ -177,6 +191,117 @@ public class FastBson {
      */
     public static void useIndexedFactory() {
         setDocumentFactory(com.cloud.fastbson.document.IndexedBsonDocumentFactory.INSTANCE);
+    }
+
+    /**
+     * Registers a schema with expected field order for optimization.
+     *
+     * <p>This enables field order hint optimization in PartialParser, improving
+     * performance by 10-20% when documents have stable field order.
+     *
+     * <p><b>Usage:</b>
+     * <pre>{@code
+     * // Register once at application startup
+     * FastBson.registerSchema("User", "_id", "name", "age", "email", "city");
+     *
+     * // Use anywhere with forSchema()
+     * PartialParser parser = new PartialParser("name", "email")
+     *     .forSchema("User");
+     * }</pre>
+     *
+     * @param schemaName Schema identifier (e.g., "User", "Order")
+     * @param fieldOrder Expected field order in BSON documents
+     * @throws IllegalArgumentException if schemaName is null/empty or fieldOrder is null/empty
+     * @since Phase 3.4
+     */
+    public static void registerSchema(String schemaName, String... fieldOrder) {
+        if (schemaName == null || schemaName.isEmpty()) {
+            throw new IllegalArgumentException("Schema name cannot be null or empty");
+        }
+        if (fieldOrder == null || fieldOrder.length == 0) {
+            throw new IllegalArgumentException("Field order cannot be null or empty");
+        }
+        SCHEMA_REGISTRY.put(schemaName, fieldOrder);
+    }
+
+    /**
+     * Retrieves the registered field order for a schema.
+     *
+     * @param schemaName Schema identifier
+     * @return Field order array, or null if schema not registered
+     * @since Phase 3.4
+     */
+    public static String[] getSchemaFieldOrder(String schemaName) {
+        return SCHEMA_REGISTRY.get(schemaName);
+    }
+
+    /**
+     * Checks if a schema is registered.
+     *
+     * @param schemaName Schema identifier
+     * @return true if registered, false otherwise
+     * @since Phase 3.4
+     */
+    public static boolean isSchemaRegistered(String schemaName) {
+        return SCHEMA_REGISTRY.containsKey(schemaName);
+    }
+
+    /**
+     * Clears all registered schemas.
+     *
+     * <p>Useful for testing or resetting schema configuration.
+     *
+     * @since Phase 3.4
+     */
+    public static void clearSchemas() {
+        SCHEMA_REGISTRY.clear();
+    }
+
+    /**
+     * Gets the number of registered schemas.
+     *
+     * @return Number of registered schemas
+     * @since Phase 3.4
+     */
+    public static int getSchemaCount() {
+        return SCHEMA_REGISTRY.size();
+    }
+
+    /**
+     * Creates a PartialParser builder for a schema class.
+     *
+     * <p>Phase 3.4: 基于注解的优雅API，自动从Class提取字段顺序。
+     *
+     * <p><b>用法示例：</b>
+     * <pre>{@code
+     * @BsonSchema("User")
+     * public class UserEntity {
+     *     @BsonField(value = "_id", order = 1)
+     *     private String id;
+     *
+     *     @BsonField(value = "name", order = 2)
+     *     private String name;
+     *
+     *     @BsonField(value = "email", order = 3)
+     *     private String email;
+     * }
+     *
+     * // 使用Builder API
+     * PartialParser parser = FastBson.forClass(UserEntity.class)
+     *     .selectFields("name", "email")
+     *     .setEarlyExit(true)
+     *     .build();
+     *
+     * // 解析BSON数据
+     * Map<String, Object> result = parser.parse(bsonData);
+     * }</pre>
+     *
+     * @param schemaClass Schema类（带@BsonField注解）
+     * @return PartialParserBuilder for fluent configuration
+     * @since Phase 3.4
+     */
+    public static PartialParserBuilder forClass(Class<?> schemaClass) {
+        return new PartialParserBuilder(schemaClass);
     }
 
     // Private constructor to prevent instantiation
