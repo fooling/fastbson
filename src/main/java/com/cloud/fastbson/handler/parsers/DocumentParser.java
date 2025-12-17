@@ -9,6 +9,7 @@ import com.cloud.fastbson.handler.TypeHandler;
 import com.cloud.fastbson.reader.BsonReader;
 import com.cloud.fastbson.util.BsonType;
 import com.cloud.fastbson.util.BsonUtils;
+import com.cloud.fastbson.util.ObjectPool;
 
 /**
  * Parser for BSON Document type (0x03).
@@ -88,7 +89,7 @@ public enum DocumentParser implements BsonTypeParser {
 
         // ✅ Phase 1 优化：HashMap 模式使用直接解析（绕过Builder，性能提升50%）
         if (factory instanceof com.cloud.fastbson.document.hashmap.HashMapBsonDocumentFactory) {
-            return parseDirectHashMap(reader, endPosition);
+            return parseDirectHashMap(reader, endPosition, docLength);
         }
 
         // ✅ Phase 2 优化：IndexedBsonDocument 零复制惰性解析（性能提升10-20x）
@@ -194,14 +195,22 @@ public enum DocumentParser implements BsonTypeParser {
      *   <li>性能提升 50-100%</li>
      * </ul>
      *
+     * <p>Phase 3 优化：启发式容量估算，避免 rehash
+     *
      * @param reader BSON reader
      * @param endPosition 文档结束位置
+     * @param docLength 文档总长度（用于容量估算）
      * @return HashMap-based BsonDocument
      */
-    private Object parseDirectHashMap(BsonReader reader, int endPosition) {
+    private Object parseDirectHashMap(BsonReader reader, int endPosition, int docLength) {
         // Phase 1 优化：直接返回 HashMap，避免防御性复制
-        java.util.Map<String, Object> data = new java.util.HashMap<String, Object>();
-        java.util.Map<String, Byte> types = new java.util.HashMap<String, Byte>();
+        // Phase 3 优化：根据文档长度估算容量，避免 rehash
+        // 启发式：平均每字段 ~20 字节，负载因子 0.75
+        int estimatedFields = Math.max(4, docLength / 20);
+        int initialCapacity = (int)(estimatedFields / 0.75) + 1;
+
+        java.util.Map<String, Object> data = new java.util.HashMap<String, Object>(initialCapacity);
+        java.util.Map<String, Byte> types = new java.util.HashMap<String, Byte>(initialCapacity);
 
         // Parse fields until we hit the END_OF_DOCUMENT marker (0x00)
         // Well-formed BSON always has this terminator

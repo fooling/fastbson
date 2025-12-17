@@ -7,6 +7,7 @@ import com.cloud.fastbson.matcher.FieldMatcher;
 import com.cloud.fastbson.reader.BsonReader;
 import com.cloud.fastbson.skipper.ValueSkipper;
 import com.cloud.fastbson.util.BsonType;
+import com.cloud.fastbson.util.ObjectPool;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -118,7 +119,7 @@ public class PartialParser {
             throw new IllegalArgumentException("Invalid BSON data");
         }
 
-        BsonReader reader = new BsonReader(bsonData);
+        BsonReader reader = ObjectPool.borrowReader(bsonData);
         return parseDocument(reader);
     }
 
@@ -129,14 +130,16 @@ public class PartialParser {
      * @return 包含目标字段的 Map
      */
     private Map<String, Object> parseDocument(BsonReader reader) {
-        // 创建结果 Map
-        int targetFieldCount = fieldMatcher.getTargetFieldCount();
-        Map<String, Object> result = new HashMap<String, Object>(
-            (int) (targetFieldCount / 0.75) + 1
-        );
-
         // 读取文档长度
         reader.readInt32();
+
+        // 目标字段数量（用于提前退出判断和容量估算）
+        int targetFieldCount = fieldMatcher.getTargetFieldCount();
+
+        // Phase 3 优化：根据目标字段数量预分配容量，避免 rehash
+        // 使用负载因子 0.75 计算初始容量
+        int initialCapacity = (int)(targetFieldCount / 0.75) + 1;
+        Map<String, Object> result = new HashMap<String, Object>(initialCapacity);
 
         // 已找到的字段数量（用于提前退出）
         int foundCount = 0;
@@ -200,7 +203,10 @@ public class PartialParser {
      * 将BsonDocument转换为Map (用于保持API兼容性)
      */
     private Map<String, Object> convertDocumentToMap(BsonDocument doc) {
-        Map<String, Object> map = new HashMap<String, Object>();
+        // Phase 3 优化：根据文档字段数量预分配容量
+        int fieldCount = doc.size();
+        int initialCapacity = (int)(fieldCount / 0.75) + 1;
+        Map<String, Object> map = new HashMap<String, Object>(initialCapacity);
         for (String fieldName : doc.fieldNames()) {
             Object value = doc.get(fieldName);
             // 递归转换嵌套文档和数组
