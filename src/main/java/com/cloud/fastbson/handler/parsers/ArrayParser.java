@@ -87,7 +87,8 @@ public enum ArrayParser implements BsonTypeParser {
         // 使用工厂创建ArrayBuilder
         BsonArrayBuilder builder = factory.newArrayBuilder();
 
-        // 估算大小
+        // Phase 3.5: 使用原有的容量估算（经过验证的算法）
+        // 测试发现更激进的估算反而导致性能退化
         int estimatedSize = Math.max(4, docLength / 15);
         builder.estimateSize(estimatedSize);
 
@@ -97,8 +98,10 @@ public enum ArrayParser implements BsonTypeParser {
                 break;
             }
 
-            // 跳过字段名（数组索引 "0", "1", "2"...）
-            reader.readCString();
+            // Phase 3.5: 跳过数组索引字段名，不创建String对象 ("0", "1", "2"...)
+            // 优化前: reader.readCString(); // 创建String + UTF-8解码 + StringPool.intern()
+            // 优化后: reader.skipCString(); // 只移动position指针，零开销
+            reader.skipCString();
 
             // ✅ 根据类型使用不同的add方法（无装箱）
             switch (type) {
