@@ -85,10 +85,7 @@ public enum ArrayParser implements BsonTypeParser {
         int endPosition = reader.position() + docLength - 4;
 
         // Phase 3.5 Advanced: 同构数组优化（homogeneous array fast path）
-        // 注意：当前禁用，因为基准测试使用混合类型数组，peeking开销反而降低性能
-        // 对于真实场景中的同构数组（如int32[], string[]），此优化可提升30-50%性能
-        // 如需启用，取消注释以下代码并注释掉通用路径
-        /*
+        // 检测数组是否为同构类型，如果是则使用类型特化的快速路径
         int startPosition = reader.position();
         byte firstType = peekArrayType(reader, startPosition, endPosition);
         if (firstType != 0) {
@@ -99,7 +96,6 @@ public enum ArrayParser implements BsonTypeParser {
             }
             reader.position(startPosition);
         }
-        */
 
         // 通用路径：使用工厂创建ArrayBuilder
         BsonArrayBuilder builder = factory.newArrayBuilder();

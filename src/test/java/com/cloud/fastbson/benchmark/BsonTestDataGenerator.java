@@ -212,6 +212,72 @@ public class BsonTestDataGenerator {
     }
 
     /**
+     * 生成同构Int32数组文档（所有数组元素都是Int32类型）
+     * Phase 3.5: 用于测试同构数组优化效果
+     *
+     * @param arrayCount 数组数量
+     * @param arraySize 每个数组的大小
+     * @return BSON 字节数组
+     */
+    public static byte[] generateHomogeneousInt32ArrayDocument(int arrayCount, int arraySize) {
+        BsonDocument doc = new BsonDocument();
+
+        for (int i = 0; i < arrayCount; i++) {
+            org.bson.BsonArray array = new org.bson.BsonArray();
+            for (int j = 0; j < arraySize; j++) {
+                array.add(new BsonInt32(j));  // 全部Int32
+            }
+            doc.put("array" + i, array);
+        }
+
+        return serializeDocument(doc);
+    }
+
+    /**
+     * 生成同构String数组文档（所有数组元素都是String类型）
+     * Phase 3.5: 用于测试同构数组优化效果
+     *
+     * @param arrayCount 数组数量
+     * @param arraySize 每个数组的大小
+     * @return BSON 字节数组
+     */
+    public static byte[] generateHomogeneousStringArrayDocument(int arrayCount, int arraySize) {
+        BsonDocument doc = new BsonDocument();
+
+        for (int i = 0; i < arrayCount; i++) {
+            org.bson.BsonArray array = new org.bson.BsonArray();
+            for (int j = 0; j < arraySize; j++) {
+                array.add(new BsonString("item_" + j));  // 全部String
+            }
+            doc.put("array" + i, array);
+        }
+
+        return serializeDocument(doc);
+    }
+
+    /**
+     * 生成同构Double数组文档（所有数组元素都是Double类型）
+     * Phase 3.5: 用于测试同构数组优化效果
+     *
+     * @param arrayCount 数组数量
+     * @param arraySize 每个数组的大小
+     * @return BSON 字节数组
+     */
+    public static byte[] generateHomogeneousDoubleArrayDocument(int arrayCount, int arraySize) {
+        BsonDocument doc = new BsonDocument();
+
+        for (int i = 0; i < arrayCount; i++) {
+            org.bson.BsonArray array = new org.bson.BsonArray();
+            for (int j = 0; j < arraySize; j++) {
+                array.add(new BsonDouble(j * 1.5));  // 全部Double
+            }
+            doc.put("array" + i, array);
+        }
+
+        return serializeDocument(doc);
+    }
+
+    /**
      * 生成指定大小的文档（通过调整字段数量和字符串长度）
      *
      * @param targetSizeKB 目标大小（KB）
