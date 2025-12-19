@@ -4,9 +4,11 @@ import com.cloud.fastbson.document.BsonDocument;
 import com.cloud.fastbson.document.BsonDocumentFactory;
 import com.cloud.fastbson.document.IndexedBsonDocument;
 import com.cloud.fastbson.document.fast.FastBsonDocumentFactory;
+import com.cloud.fastbson.handler.TypeHandler;
 import com.cloud.fastbson.handler.parsers.DocumentParser;
 import com.cloud.fastbson.parser.PartialParserBuilder;
 import com.cloud.fastbson.reader.BsonReader;
+import com.cloud.fastbson.util.CapacityEstimator;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -265,6 +267,63 @@ public class FastBson {
      */
     public static int getSchemaCount() {
         return SCHEMA_REGISTRY.size();
+    }
+
+    /**
+     * Sets the capacity estimator for document and array pre-allocation.
+     *
+     * <p>Capacity estimation is used to pre-allocate the right size for HashMaps and ArrayLists,
+     * avoiding costly rehashing/resizing operations during parsing.
+     *
+     * <p><b>Usage:</b>
+     * <pre>{@code
+     * // Tune for dense documents with many small fields
+     * CapacityEstimator dense = CapacityEstimator.builder()
+     *     .documentBytesPerField(10)  // Fields average 10 bytes each
+     *     .arrayBytesPerElement(8)    // Array elements average 8 bytes each
+     *     .build();
+     * FastBson.setCapacityEstimator(dense);
+     *
+     * // Tune for sparse documents with few large fields
+     * CapacityEstimator sparse = CapacityEstimator.builder()
+     *     .documentBytesPerField(50)  // Fields average 50 bytes each
+     *     .build();
+     * FastBson.setCapacityEstimator(sparse);
+     * }</pre>
+     *
+     * @param estimator the CapacityEstimator to use
+     * @since Phase 3.5
+     * @see CapacityEstimator
+     */
+    public static void setCapacityEstimator(CapacityEstimator estimator) {
+        TypeHandler.setCapacityEstimator(estimator);
+    }
+
+    /**
+     * Gets the current capacity estimator.
+     *
+     * @return the current CapacityEstimator
+     * @since Phase 3.5
+     */
+    public static CapacityEstimator getCapacityEstimator() {
+        return TypeHandler.getCapacityEstimator();
+    }
+
+    /**
+     * Resets capacity estimator to default values.
+     *
+     * <p>Default heuristics are optimized for general BSON documents:
+     * <ul>
+     *   <li>documentBytesPerField: 20 (balanced for mixed field types)</li>
+     *   <li>arrayBytesPerElement: 15 (balanced for mixed element types)</li>
+     *   <li>minCapacity: 4 (avoid over-allocation for small documents)</li>
+     *   <li>loadFactor: 0.75 (standard HashMap load factor)</li>
+     * </ul>
+     *
+     * @since Phase 3.5
+     */
+    public static void useDefaultCapacityEstimator() {
+        TypeHandler.setCapacityEstimator(CapacityEstimator.defaults());
     }
 
     /**

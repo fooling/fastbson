@@ -9,6 +9,7 @@ import com.cloud.fastbson.handler.TypeHandler;
 import com.cloud.fastbson.reader.BsonReader;
 import com.cloud.fastbson.util.BsonType;
 import com.cloud.fastbson.util.BsonUtils;
+import com.cloud.fastbson.util.CapacityEstimator;
 import com.cloud.fastbson.util.ObjectPool;
 
 /**
@@ -44,6 +45,7 @@ public enum DocumentParser implements BsonTypeParser {
 
     private TypeHandler handler;
     private BsonDocumentFactory factory;  // ✅ 工厂注入
+    private CapacityEstimator capacityEstimator;  // ✅ Phase 3.5: 容量估算器注入
 
     /**
      * Sets the TypeHandler for recursive parsing.
@@ -59,6 +61,16 @@ public enum DocumentParser implements BsonTypeParser {
      */
     public void setFactory(BsonDocumentFactory factory) {
         this.factory = factory;
+    }
+
+    /**
+     * Sets the CapacityEstimator for capacity pre-allocation.
+     * Called by TypeHandler during initialization.
+     *
+     * @since Phase 3.5
+     */
+    public void setCapacityEstimator(CapacityEstimator estimator) {
+        this.capacityEstimator = estimator;
     }
 
     /**
@@ -100,8 +112,10 @@ public enum DocumentParser implements BsonTypeParser {
         // 使用工厂创建Builder
         BsonDocumentBuilder builder = factory.newDocumentBuilder();
 
-        // 估算容量（粗略估计：每个字段平均20字节）
-        int estimatedFields = Math.max(4, docLength / 20);
+        // Phase 3.5: 使用可配置的容量估算器（默认：每个字段平均20字节）
+        int estimatedFields = capacityEstimator != null
+            ? capacityEstimator.estimateDocumentFields(docLength)
+            : Math.max(4, docLength / 20);  // Fallback to default if not set
         builder.estimateSize(estimatedFields);
 
         while (reader.position() < endPosition) {
@@ -205,10 +219,17 @@ public enum DocumentParser implements BsonTypeParser {
      */
     private Object parseDirectHashMap(BsonReader reader, int endPosition, int docLength) {
         // Phase 1 优化：直接返回 HashMap，避免防御性复制
-        // Phase 3 优化：根据文档长度估算容量，避免 rehash
-        // 启发式：平均每字段 ~20 字节，负载因子 0.75
-        int estimatedFields = Math.max(4, docLength / 20);
-        int initialCapacity = (int)(estimatedFields / 0.75) + 1;
+        // Phase 3.5 优化：使用可配置的容量估算器，避免 rehash
+        int estimatedFields;
+        int initialCapacity;
+        if (capacityEstimator != null) {
+            estimatedFields = capacityEstimator.estimateDocumentFields(docLength);
+            initialCapacity = capacityEstimator.hashMapCapacity(estimatedFields);
+        } else {
+            // Fallback to default heuristics if estimator not set
+            estimatedFields = Math.max(4, docLength / 20);
+            initialCapacity = (int)(estimatedFields / 0.75) + 1;
+        }
 
         java.util.Map<String, Object> data = new java.util.HashMap<String, Object>(initialCapacity);
         java.util.Map<String, Byte> types = new java.util.HashMap<String, Byte>(initialCapacity);

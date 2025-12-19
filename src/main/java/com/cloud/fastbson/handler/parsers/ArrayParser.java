@@ -9,6 +9,7 @@ import com.cloud.fastbson.handler.TypeHandler;
 import com.cloud.fastbson.reader.BsonReader;
 import com.cloud.fastbson.util.BsonType;
 import com.cloud.fastbson.util.BsonUtils;
+import com.cloud.fastbson.util.CapacityEstimator;
 
 /**
  * Parser for BSON Array type (0x04).
@@ -41,6 +42,7 @@ public enum ArrayParser implements BsonTypeParser {
 
     private TypeHandler handler;
     private BsonDocumentFactory factory;  // ✅ 工厂注入
+    private CapacityEstimator capacityEstimator;  // ✅ Phase 3.5: 容量估算器注入
 
     /**
      * Sets the TypeHandler for recursive parsing.
@@ -56,6 +58,16 @@ public enum ArrayParser implements BsonTypeParser {
      */
     public void setFactory(BsonDocumentFactory factory) {
         this.factory = factory;
+    }
+
+    /**
+     * Sets the CapacityEstimator for capacity pre-allocation.
+     * Called by TypeHandler during initialization.
+     *
+     * @since Phase 3.5
+     */
+    public void setCapacityEstimator(CapacityEstimator estimator) {
+        this.capacityEstimator = estimator;
     }
 
     /**
@@ -100,9 +112,10 @@ public enum ArrayParser implements BsonTypeParser {
         // 通用路径：使用工厂创建ArrayBuilder
         BsonArrayBuilder builder = factory.newArrayBuilder();
 
-        // Phase 3.5: 使用原有的容量估算（经过验证的算法）
-        // 测试发现更激进的估算反而导致性能退化
-        int estimatedSize = Math.max(4, docLength / 15);
+        // Phase 3.5: 使用可配置的容量估算器（默认：每个元素平均15字节）
+        int estimatedSize = capacityEstimator != null
+            ? capacityEstimator.estimateArrayElements(docLength)
+            : Math.max(4, docLength / 15);  // Fallback to default if not set
         builder.estimateSize(estimatedSize);
 
         while (reader.position() < endPosition) {
@@ -237,9 +250,13 @@ public enum ArrayParser implements BsonTypeParser {
 
     /**
      * 根据数组文档长度估算元素数量
+     * Phase 3.5: 使用可配置的容量估算器
      */
     private int estimateArraySize(int docLength) {
-        // 启发式：平均每元素约15字节（类型1字节 + 索引2-3字节 + 值8-12字节）
+        if (capacityEstimator != null) {
+            return capacityEstimator.estimateArrayElements(docLength);
+        }
+        // Fallback to default heuristic if estimator not set
         return Math.max(4, docLength / 15);
     }
 

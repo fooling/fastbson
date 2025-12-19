@@ -6,10 +6,13 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Marks a field as a BSON field with optional order hint.
+ * Marks a field as a BSON field with optional order hint and array type optimization.
  *
  * <p>The order hint is used for field order optimization in partial parsing.
  * Fields are sorted by order value in ascending order.
+ *
+ * <p>The arrayType hint is used for homogeneous array optimization. When specified,
+ * the parser skips runtime type detection and directly uses the type-specialized fast path.
  *
  * <p><b>Usage:</b>
  * <pre>{@code
@@ -22,6 +25,13 @@ import java.lang.annotation.Target;
  *
  *     @BsonField(value = "age", order = 3)
  *     private Integer age;
+ *
+ *     // Phase 3.5: Homogeneous array optimization
+ *     @BsonField(value = "timestamps", arrayType = 0x12)  // INT64
+ *     private long[] timestamps;
+ *
+ *     @BsonField(value = "scores", arrayType = 0x01)  // DOUBLE
+ *     private double[] scores;
  * }
  * }</pre>
  *
@@ -47,4 +57,25 @@ public @interface BsonField {
      * @return field order (-1 for unordered)
      */
     int order() default -1;
+
+    /**
+     * Array element type hint for homogeneous array optimization.
+     *
+     * <p>When specified (non-zero), the parser assumes all array elements
+     * have the same type and uses type-specialized fast path without runtime detection.
+     *
+     * <p>Common values:
+     * <ul>
+     *   <li>0x10 (16): INT32 - for int[] arrays</li>
+     *   <li>0x12 (18): INT64 - for long[] arrays</li>
+     *   <li>0x01 (1): DOUBLE - for double[] arrays</li>
+     *   <li>0x02 (2): STRING - for String[] arrays</li>
+     * </ul>
+     *
+     * <p>Use 0 (default) to disable optimization and use runtime detection.
+     *
+     * @return BSON type code for array elements, or 0 for auto-detection
+     * @since Phase 3.5
+     */
+    byte arrayType() default 0;
 }
