@@ -67,6 +67,14 @@
             <version>4.11.0</version>
             <scope>test</scope>
         </dependency>
+
+        <!-- JavaPoet for compile-time code generation -->
+        <dependency>
+            <groupId>com.squareup</groupId>
+            <artifactId>javapoet</artifactId>
+            <version>1.13.0</version>
+        </dependency>
+
     </dependencies>
 
     <build>
@@ -75,6 +83,17 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.11.0</version>
+                <configuration>
+                    <!-- Only run Lombok processor, exclude our BranchOrderProcessor which
+                         would cause chicken-and-egg problem (can't load before compiled) -->
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
             </plugin>
 
             <plugin>
