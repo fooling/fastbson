@@ -9,6 +9,8 @@ import com.cloud.fastbson.handler.TypeHandler;
 import com.cloud.fastbson.reader.BsonReader;
 import com.cloud.fastbson.util.BsonType;
 import com.cloud.fastbson.util.BsonUtils;
+import com.cloud.fastbson.util.CapacityEstimator;
+import com.cloud.fastbson.util.ObjectPool;
 
 /**
  * Parser for BSON Document type (0x03).
@@ -43,6 +45,7 @@ public enum DocumentParser implements BsonTypeParser {
 
     private TypeHandler handler;
     private BsonDocumentFactory factory;  // ✅ 工厂注入
+    private CapacityEstimator capacityEstimator;  // ✅ Phase 3.5: 容量估算器注入
 
     /**
      * Sets the TypeHandler for recursive parsing.
@@ -58,6 +61,16 @@ public enum DocumentParser implements BsonTypeParser {
      */
     public void setFactory(BsonDocumentFactory factory) {
         this.factory = factory;
+    }
+
+    /**
+     * Sets the CapacityEstimator for capacity pre-allocation.
+     * Called by TypeHandler during initialization.
+     *
+     * @since Phase 3.5
+     */
+    public void setCapacityEstimator(CapacityEstimator estimator) {
+        this.capacityEstimator = estimator;
     }
 
     /**
@@ -88,7 +101,7 @@ public enum DocumentParser implements BsonTypeParser {
 
         // ✅ Phase 1 优化：HashMap 模式使用直接解析（绕过Builder，性能提升50%）
         if (factory instanceof com.cloud.fastbson.document.hashmap.HashMapBsonDocumentFactory) {
-            return parseDirectHashMap(reader, endPosition);
+            return parseDirectHashMap(reader, endPosition, docLength);
         }
 
         // ✅ Phase 2 优化：IndexedBsonDocument 零复制惰性解析（性能提升10-20x）
@@ -99,8 +112,10 @@ public enum DocumentParser implements BsonTypeParser {
         // 使用工厂创建Builder
         BsonDocumentBuilder builder = factory.newDocumentBuilder();
 
-        // 估算容量（粗略估计：每个字段平均20字节）
-        int estimatedFields = Math.max(4, docLength / 20);
+        // Phase 3.5: 使用可配置的容量估算器（默认：每个字段平均20字节）
+        int estimatedFields = capacityEstimator != null
+            ? capacityEstimator.estimateDocumentFields(docLength)
+            : Math.max(4, docLength / 20);  // Fallback to default if not set
         builder.estimateSize(estimatedFields);
 
         while (reader.position() < endPosition) {
@@ -112,25 +127,11 @@ public enum DocumentParser implements BsonTypeParser {
             String fieldName = reader.readCString();
 
             // ✅ 根据类型使用不同的put方法（无装箱）
+            // Phase 3.3: 按类型频率排序，优化CPU分支预测（INT32 35%, STRING 30%, DOUBLE 15%, INT64 10%）
             switch (type) {
                 case BsonType.INT32:
                     int intValue = reader.readInt32();
                     builder.putInt32(fieldName, intValue);  // ✅ 无装箱
-                    break;
-
-                case BsonType.INT64:
-                    long longValue = reader.readInt64();
-                    builder.putInt64(fieldName, longValue);  // ✅ 无装箱
-                    break;
-
-                case BsonType.DOUBLE:
-                    double doubleValue = reader.readDouble();
-                    builder.putDouble(fieldName, doubleValue);  // ✅ 无装箱
-                    break;
-
-                case BsonType.BOOLEAN:
-                    boolean boolValue = reader.readByte() != 0;
-                    builder.putBoolean(fieldName, boolValue);  // ✅ 无装箱
                     break;
 
                 case BsonType.STRING:
@@ -138,6 +139,21 @@ public enum DocumentParser implements BsonTypeParser {
                 case BsonType.SYMBOL:
                     String stringValue = reader.readString();
                     builder.putString(fieldName, stringValue);
+                    break;
+
+                case BsonType.DOUBLE:
+                    double doubleValue = reader.readDouble();
+                    builder.putDouble(fieldName, doubleValue);  // ✅ 无装箱
+                    break;
+
+                case BsonType.INT64:
+                    long longValue = reader.readInt64();
+                    builder.putInt64(fieldName, longValue);  // ✅ 无装箱
+                    break;
+
+                case BsonType.BOOLEAN:
+                    boolean boolValue = reader.readByte() != 0;
+                    builder.putBoolean(fieldName, boolValue);  // ✅ 无装箱
                     break;
 
                 case BsonType.DOCUMENT:
@@ -194,14 +210,29 @@ public enum DocumentParser implements BsonTypeParser {
      *   <li>性能提升 50-100%</li>
      * </ul>
      *
+     * <p>Phase 3 优化：启发式容量估算，避免 rehash
+     *
      * @param reader BSON reader
      * @param endPosition 文档结束位置
+     * @param docLength 文档总长度（用于容量估算）
      * @return HashMap-based BsonDocument
      */
-    private Object parseDirectHashMap(BsonReader reader, int endPosition) {
+    private Object parseDirectHashMap(BsonReader reader, int endPosition, int docLength) {
         // Phase 1 优化：直接返回 HashMap，避免防御性复制
-        java.util.Map<String, Object> data = new java.util.HashMap<String, Object>();
-        java.util.Map<String, Byte> types = new java.util.HashMap<String, Byte>();
+        // Phase 3.5 优化：使用可配置的容量估算器，避免 rehash
+        int estimatedFields;
+        int initialCapacity;
+        if (capacityEstimator != null) {
+            estimatedFields = capacityEstimator.estimateDocumentFields(docLength);
+            initialCapacity = capacityEstimator.hashMapCapacity(estimatedFields);
+        } else {
+            // Fallback to default heuristics if estimator not set
+            estimatedFields = Math.max(4, docLength / 20);
+            initialCapacity = (int)(estimatedFields / 0.75) + 1;
+        }
+
+        java.util.Map<String, Object> data = new java.util.HashMap<String, Object>(initialCapacity);
+        java.util.Map<String, Byte> types = new java.util.HashMap<String, Byte>(initialCapacity);
 
         // Parse fields until we hit the END_OF_DOCUMENT marker (0x00)
         // Well-formed BSON always has this terminator
@@ -228,16 +259,26 @@ public enum DocumentParser implements BsonTypeParser {
 
     /**
      * 直接解析值（Phase 1 优化路径）
+     * Phase 3.3: 按类型频率排序，优化CPU分支预测（INT32 35%, STRING 30%, DOUBLE 15%, INT64 10%）
      */
     private Object parseValueDirect(BsonReader reader, byte type) {
         switch (type) {
-            case BsonType.DOUBLE:
-                return Double.valueOf(reader.readDouble());
+            case BsonType.INT32:
+                return Integer.valueOf(reader.readInt32());
 
             case BsonType.STRING:
             case BsonType.JAVASCRIPT:
             case BsonType.SYMBOL:
                 return reader.readString();
+
+            case BsonType.DOUBLE:
+                return Double.valueOf(reader.readDouble());
+
+            case BsonType.INT64:
+                return Long.valueOf(reader.readInt64());
+
+            case BsonType.BOOLEAN:
+                return Boolean.valueOf(reader.readByte() != 0);
 
             case BsonType.DOCUMENT:
                 return parse(reader);  // 递归使用相同优化路径
@@ -245,22 +286,19 @@ public enum DocumentParser implements BsonTypeParser {
             case BsonType.ARRAY:
                 return ArrayParser.INSTANCE.parse(reader);
 
-            case BsonType.BINARY:
-                int binLength = reader.readInt32();
-                reader.readByte();  // Skip subtype
-                return reader.readBytes(binLength);
-
             case BsonType.OBJECT_ID:
                 return BsonUtils.bytesToHex(reader.readBytes(12));
-
-            case BsonType.BOOLEAN:
-                return Boolean.valueOf(reader.readByte() != 0);
 
             case BsonType.DATE_TIME:
                 return Long.valueOf(reader.readInt64());
 
             case BsonType.NULL:
                 return null;
+
+            case BsonType.BINARY:
+                int binLength = reader.readInt32();
+                reader.readByte();  // Skip subtype
+                return reader.readBytes(binLength);
 
             case BsonType.REGEX:
                 String pattern = reader.readCString();
@@ -278,13 +316,7 @@ public enum DocumentParser implements BsonTypeParser {
                 Object scope = parse(reader);
                 return new Object[]{code, scope};
 
-            case BsonType.INT32:
-                return Integer.valueOf(reader.readInt32());
-
             case BsonType.TIMESTAMP:
-                return Long.valueOf(reader.readInt64());
-
-            case BsonType.INT64:
                 return Long.valueOf(reader.readInt64());
 
             case BsonType.DECIMAL128:

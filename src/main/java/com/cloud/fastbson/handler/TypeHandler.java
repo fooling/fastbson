@@ -25,6 +25,7 @@ import com.cloud.fastbson.handler.parsers.StringParser;
 import com.cloud.fastbson.handler.parsers.TimestampParser;
 import com.cloud.fastbson.reader.BsonReader;
 import com.cloud.fastbson.util.BsonType;
+import com.cloud.fastbson.util.CapacityEstimator;
 
 import java.util.Map;
 
@@ -56,6 +57,14 @@ public class TypeHandler {
      * Uses FastBsonDocumentFactory (fastutil-based, zero-boxing).
      */
     private static BsonDocumentFactory documentFactory = FastBsonDocumentFactory.INSTANCE;
+
+    /**
+     * Capacity estimator for document and array pre-allocation.
+     * Uses default heuristics optimized for general BSON documents.
+     *
+     * @since Phase 3.5
+     */
+    private static CapacityEstimator capacityEstimator = CapacityEstimator.defaults();
 
     static {
         // Initialize lookup table with type-specific parsers
@@ -99,6 +108,10 @@ public class TypeHandler {
         DocumentParser.INSTANCE.setFactory(documentFactory);
         ArrayParser.INSTANCE.setFactory(documentFactory);
 
+        // Phase 3.5: Inject capacity estimator for pre-allocation optimization
+        DocumentParser.INSTANCE.setCapacityEstimator(capacityEstimator);
+        ArrayParser.INSTANCE.setCapacityEstimator(capacityEstimator);
+
         PARSERS[BsonType.DOCUMENT & 0xFF] = DocumentParser.INSTANCE;
         PARSERS[BsonType.ARRAY & 0xFF] = ArrayParser.INSTANCE;
         PARSERS[BsonType.JAVASCRIPT_WITH_SCOPE & 0xFF] = JavaScriptWithScopeParser.INSTANCE;
@@ -125,6 +138,35 @@ public class TypeHandler {
      */
     public static BsonDocumentFactory getDocumentFactory() {
         return documentFactory;
+    }
+
+    /**
+     * Sets the capacity estimator for document and array pre-allocation.
+     *
+     * <p>Capacity estimation is used to pre-allocate the right size for HashMaps and ArrayLists,
+     * avoiding costly rehashing/resizing operations during parsing.
+     *
+     * <p>Default estimator uses heuristics optimized for general BSON documents.
+     * Can be customized for specific business scenarios.
+     *
+     * @param estimator the CapacityEstimator to use
+     * @since Phase 3.5
+     */
+    public static void setCapacityEstimator(CapacityEstimator estimator) {
+        capacityEstimator = estimator;
+        // Re-inject estimator into parsers
+        DocumentParser.INSTANCE.setCapacityEstimator(capacityEstimator);
+        ArrayParser.INSTANCE.setCapacityEstimator(capacityEstimator);
+    }
+
+    /**
+     * Gets the current capacity estimator.
+     *
+     * @return the current CapacityEstimator
+     * @since Phase 3.5
+     */
+    public static CapacityEstimator getCapacityEstimator() {
+        return capacityEstimator;
     }
 
     /**

@@ -1,5 +1,7 @@
 package com.cloud.fastbson.reader;
 
+import com.cloud.fastbson.util.StringPool;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -14,6 +16,12 @@ import java.nio.charset.StandardCharsets;
  * to achieve 100% branch coverage.
  */
 public class BsonReaderTest {
+
+    @AfterEach
+    public void tearDown() {
+        // Clear StringPool after each test to ensure isolation
+        StringPool.clear();
+    }
 
     // Helper method to create little-endian byte array for int32
     private byte[] createInt32Bytes(int value) {
@@ -339,6 +347,149 @@ public class BsonReaderTest {
         // Act & Assert
         assertThrows(IllegalArgumentException.class, () -> reader.readCString());
     }
+
+    @Test
+    public void testReadCString_Interning() {
+        // Arrange - Create two separate buffers with same field name
+        byte[] buffer1 = createCStringBytes("fieldName");
+        byte[] buffer2 = createCStringBytes("fieldName");
+        BsonReader reader1 = new BsonReader(buffer1);
+        BsonReader reader2 = new BsonReader(buffer2);
+
+        // Act
+        String str1 = reader1.readCString();
+        String str2 = reader2.readCString();
+
+        // Assert
+        assertEquals("fieldName", str1);
+        assertEquals("fieldName", str2);
+        assertSame(str1, str2); // Key assertion: same reference (interned)
+        assertEquals(1, StringPool.getPoolSize()); // Only one entry in pool
+    }
+
+    @Test
+    public void testReadCString_DifferentStrings() {
+        // Arrange
+        byte[] buffer1 = createCStringBytes("field1");
+        byte[] buffer2 = createCStringBytes("field2");
+        BsonReader reader1 = new BsonReader(buffer1);
+        BsonReader reader2 = new BsonReader(buffer2);
+
+        // Act
+        String str1 = reader1.readCString();
+        String str2 = reader2.readCString();
+
+        // Assert
+        assertEquals("field1", str1);
+        assertEquals("field2", str2);
+        assertNotSame(str1, str2); // Different strings, different references
+        assertEquals(2, StringPool.getPoolSize()); // Two entries in pool
+    }
+
+    // ==================== skipCString() Tests (Phase 3.5) ====================
+
+    @Test
+    public void testSkipCString_Success() {
+        // Arrange
+        byte[] buffer = createCStringBytes("field1");
+        BsonReader reader = new BsonReader(buffer);
+        int initialPosition = reader.position();
+
+        // Act
+        reader.skipCString();
+
+        // Assert
+        assertEquals(initialPosition + "field1".length() + 1, reader.position());
+        // Verify no String object was created (no StringPool entry)
+        int poolSizeBefore = StringPool.getPoolSize();
+        reader.reset(buffer);
+        reader.skipCString();
+        assertEquals(poolSizeBefore, StringPool.getPoolSize()); // Pool size unchanged
+    }
+
+    @Test
+    public void testSkipCString_EmptyString() {
+        // Arrange
+        byte[] buffer = createCStringBytes("");
+        BsonReader reader = new BsonReader(buffer);
+
+        // Act
+        reader.skipCString();
+
+        // Assert
+        assertEquals(1, reader.position()); // Only null terminator
+    }
+
+    @Test
+    public void testSkipCString_NoNullTerminator() {
+        // Arrange
+        byte[] buffer = "field1".getBytes(StandardCharsets.UTF_8); // No null terminator
+        BsonReader reader = new BsonReader(buffer);
+
+        // Act & Assert
+        assertThrows(IllegalArgumentException.class, () -> reader.skipCString());
+    }
+
+    @Test
+    public void testSkipCString_MultipleSkips() {
+        // Arrange
+        byte[] field1 = createCStringBytes("field1");
+        byte[] field2 = createCStringBytes("field2");
+        byte[] field3 = createCStringBytes("field3");
+        byte[] buffer = new byte[field1.length + field2.length + field3.length];
+        System.arraycopy(field1, 0, buffer, 0, field1.length);
+        System.arraycopy(field2, 0, buffer, field1.length, field2.length);
+        System.arraycopy(field3, 0, buffer, field1.length + field2.length, field3.length);
+
+        BsonReader reader = new BsonReader(buffer);
+
+        // Act
+        reader.skipCString(); // Skip "field1"
+        int pos1 = reader.position();
+        reader.skipCString(); // Skip "field2"
+        int pos2 = reader.position();
+        reader.skipCString(); // Skip "field3"
+        int pos3 = reader.position();
+
+        // Assert
+        assertEquals(field1.length, pos1);
+        assertEquals(field1.length + field2.length, pos2);
+        assertEquals(field1.length + field2.length + field3.length, pos3);
+    }
+
+    @Test
+    public void testSkipCString_UTF8Characters() {
+        // Arrange
+        byte[] buffer = createCStringBytes("你好世界"); // Chinese characters
+        BsonReader reader = new BsonReader(buffer);
+        int initialPosition = reader.position();
+
+        // Act
+        reader.skipCString();
+
+        // Assert
+        int expectedPosition = initialPosition + "你好世界".getBytes(StandardCharsets.UTF_8).length + 1;
+        assertEquals(expectedPosition, reader.position());
+    }
+
+    @Test
+    public void testSkipCString_PerformanceVsReadCString() {
+        // Arrange
+        byte[] buffer = createCStringBytes("arrayIndex");
+        BsonReader reader1 = new BsonReader(buffer);
+        BsonReader reader2 = new BsonReader(buffer);
+
+        // Act - Both should advance position identically
+        reader1.skipCString();
+        String result = reader2.readCString();
+
+        // Assert
+        assertEquals(reader1.position(), reader2.position()); // Same final position
+        assertEquals("arrayIndex", result); // readCString still works correctly
+        // skipCString should be faster but we can't measure in unit test
+    }
+
+    // ==================== readString() Tests ====================
 
     @Test
     public void testReadString_Success() {
