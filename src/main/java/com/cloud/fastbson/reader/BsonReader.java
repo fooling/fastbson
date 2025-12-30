@@ -1,7 +1,6 @@
 package com.cloud.fastbson.reader;
 
 import com.cloud.fastbson.util.BsonUtils;
-import com.cloud.fastbson.util.StringPool;
 
 import java.nio.charset.StandardCharsets;
 
@@ -184,7 +183,7 @@ public class BsonReader {
         }
         String str = new String(buffer, start, position - start, StandardCharsets.UTF_8);
         position++; // skip null terminator
-        return StringPool.intern(str);
+        return str;
     }
 
     /**

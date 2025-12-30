@@ -1,7 +1,5 @@
 package com.cloud.fastbson.reader;
 
-import com.cloud.fastbson.util.StringPool;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -16,12 +14,6 @@ import java.nio.charset.StandardCharsets;
  * to achieve 100% branch coverage.
  */
 public class BsonReaderTest {
-
-    @AfterEach
-    public void tearDown() {
-        // Clear StringPool after each test to ensure isolation
-        StringPool.clear();
-    }
 
     // Helper method to create little-endian byte array for int32
     private byte[] createInt32Bytes(int value) {
@@ -348,44 +340,6 @@ public class BsonReaderTest {
         assertThrows(IllegalArgumentException.class, () -> reader.readCString());
     }
 
-    @Test
-    public void testReadCString_Interning() {
-        // Arrange - Create two separate buffers with same field name
-        byte[] buffer1 = createCStringBytes("fieldName");
-        byte[] buffer2 = createCStringBytes("fieldName");
-        BsonReader reader1 = new BsonReader(buffer1);
-        BsonReader reader2 = new BsonReader(buffer2);
-
-        // Act
-        String str1 = reader1.readCString();
-        String str2 = reader2.readCString();
-
-        // Assert
-        assertEquals("fieldName", str1);
-        assertEquals("fieldName", str2);
-        assertSame(str1, str2); // Key assertion: same reference (interned)
-        assertEquals(1, StringPool.getPoolSize()); // Only one entry in pool
-    }
-
-    @Test
-    public void testReadCString_DifferentStrings() {
-        // Arrange
-        byte[] buffer1 = createCStringBytes("field1");
-        byte[] buffer2 = createCStringBytes("field2");
-        BsonReader reader1 = new BsonReader(buffer1);
-        BsonReader reader2 = new BsonReader(buffer2);
-
-        // Act
-        String str1 = reader1.readCString();
-        String str2 = reader2.readCString();
-
-        // Assert
-        assertEquals("field1", str1);
-        assertEquals("field2", str2);
-        assertNotSame(str1, str2); // Different strings, different references
-        assertEquals(2, StringPool.getPoolSize()); // Two entries in pool
-    }
-
     // ==================== skipCString() Tests (Phase 3.5) ====================
 
     @Test
@@ -400,11 +354,6 @@ public class BsonReaderTest {
 
         // Assert
         assertEquals(initialPosition + "field1".length() + 1, reader.position());
-        // Verify no String object was created (no StringPool entry)
-        int poolSizeBefore = StringPool.getPoolSize();
-        reader.reset(buffer);
-        reader.skipCString();
-        assertEquals(poolSizeBefore, StringPool.getPoolSize()); // Pool size unchanged
     }
 
     @Test
