@@ -155,7 +155,109 @@ public class ExtendedBenchmarkValidationTest {
         }
         long mongoTime = System.nanoTime() - mongoStart;
 
-        System.out.println("Array Heavy (20 arrays x 100 elements):");
+        System.out.println("Array Heavy - Mixed Types (20 arrays x 100 elements):");
+        System.out.println("  FastBSON: " + (fastbsonTime / 1_000_000) + " ms");
+        System.out.println("  MongoDB:  " + (mongoTime / 1_000_000) + " ms");
+        System.out.println("  Speedup:  " + String.format("%.2fx", (double) mongoTime / fastbsonTime));
+    }
+
+    @Test
+    public void testHomogeneousInt32ArrayDocument() {
+        byte[] bsonData = BsonTestDataGenerator.generateHomogeneousInt32ArrayDocument(20, 100);
+
+        assertTrue(bsonData.length > 0);
+        System.out.println("\nHomogeneous Int32 Array Document size: " + bsonData.length + " bytes");
+
+        // 测试 FastBSON
+        long fastbsonStart = System.nanoTime();
+        for (int i = 0; i < 1000; i++) {
+            BsonReader reader = new BsonReader(bsonData);
+            com.cloud.fastbson.document.BsonDocument result = (com.cloud.fastbson.document.BsonDocument) DocumentParser.INSTANCE.parse(reader);
+            assertEquals(20, result.size());
+        }
+        long fastbsonTime = System.nanoTime() - fastbsonStart;
+
+        // 测试 MongoDB BSON
+        long mongoStart = System.nanoTime();
+        for (int i = 0; i < 1000; i++) {
+            BsonBinaryReader reader = new BsonBinaryReader(new ByteBufferBsonInput(
+                new org.bson.ByteBufNIO(ByteBuffer.wrap(bsonData))));
+            BsonDocumentCodec codec = new BsonDocumentCodec();
+            BsonDocument doc = codec.decode(reader, DecoderContext.builder().build());
+            assertEquals(20, doc.size());
+            reader.close();
+        }
+        long mongoTime = System.nanoTime() - mongoStart;
+
+        System.out.println("Homogeneous Int32 Arrays (20 arrays x 100 Int32):");
+        System.out.println("  FastBSON: " + (fastbsonTime / 1_000_000) + " ms");
+        System.out.println("  MongoDB:  " + (mongoTime / 1_000_000) + " ms");
+        System.out.println("  Speedup:  " + String.format("%.2fx", (double) mongoTime / fastbsonTime));
+    }
+
+    @Test
+    public void testHomogeneousStringArrayDocument() {
+        byte[] bsonData = BsonTestDataGenerator.generateHomogeneousStringArrayDocument(20, 100);
+
+        assertTrue(bsonData.length > 0);
+        System.out.println("\nHomogeneous String Array Document size: " + bsonData.length + " bytes");
+
+        // 测试 FastBSON
+        long fastbsonStart = System.nanoTime();
+        for (int i = 0; i < 1000; i++) {
+            BsonReader reader = new BsonReader(bsonData);
+            com.cloud.fastbson.document.BsonDocument result = (com.cloud.fastbson.document.BsonDocument) DocumentParser.INSTANCE.parse(reader);
+            assertEquals(20, result.size());
+        }
+        long fastbsonTime = System.nanoTime() - fastbsonStart;
+
+        // 测试 MongoDB BSON
+        long mongoStart = System.nanoTime();
+        for (int i = 0; i < 1000; i++) {
+            BsonBinaryReader reader = new BsonBinaryReader(new ByteBufferBsonInput(
+                new org.bson.ByteBufNIO(ByteBuffer.wrap(bsonData))));
+            BsonDocumentCodec codec = new BsonDocumentCodec();
+            BsonDocument doc = codec.decode(reader, DecoderContext.builder().build());
+            assertEquals(20, doc.size());
+            reader.close();
+        }
+        long mongoTime = System.nanoTime() - mongoStart;
+
+        System.out.println("Homogeneous String Arrays (20 arrays x 100 String):");
+        System.out.println("  FastBSON: " + (fastbsonTime / 1_000_000) + " ms");
+        System.out.println("  MongoDB:  " + (mongoTime / 1_000_000) + " ms");
+        System.out.println("  Speedup:  " + String.format("%.2fx", (double) mongoTime / fastbsonTime));
+    }
+
+    @Test
+    public void testHomogeneousDoubleArrayDocument() {
+        byte[] bsonData = BsonTestDataGenerator.generateHomogeneousDoubleArrayDocument(20, 100);
+
+        assertTrue(bsonData.length > 0);
+        System.out.println("\nHomogeneous Double Array Document size: " + bsonData.length + " bytes");
+
+        // 测试 FastBSON
+        long fastbsonStart = System.nanoTime();
+        for (int i = 0; i < 1000; i++) {
+            BsonReader reader = new BsonReader(bsonData);
+            com.cloud.fastbson.document.BsonDocument result = (com.cloud.fastbson.document.BsonDocument) DocumentParser.INSTANCE.parse(reader);
+            assertEquals(20, result.size());
+        }
+        long fastbsonTime = System.nanoTime() - fastbsonStart;
+
+        // 测试 MongoDB BSON
+        long mongoStart = System.nanoTime();
+        for (int i = 0; i < 1000; i++) {
+            BsonBinaryReader reader = new BsonBinaryReader(new ByteBufferBsonInput(
+                new org.bson.ByteBufNIO(ByteBuffer.wrap(bsonData))));
+            BsonDocumentCodec codec = new BsonDocumentCodec();
+            BsonDocument doc = codec.decode(reader, DecoderContext.builder().build());
+            assertEquals(20, doc.size());
+            reader.close();
+        }
+        long mongoTime = System.nanoTime() - mongoStart;
+
+        System.out.println("Homogeneous Double Arrays (20 arrays x 100 Double):");
         System.out.println("  FastBSON: " + (fastbsonTime / 1_000_000) + " ms");
         System.out.println("  MongoDB:  " + (mongoTime / 1_000_000) + " ms");
         System.out.println("  Speedup:  " + String.format("%.2fx", (double) mongoTime / fastbsonTime));

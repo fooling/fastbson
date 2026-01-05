@@ -301,10 +301,11 @@ public class UncoveredBranchesTest {
         // Get the INSTANCE field (enum singleton)
         Object documentParser = documentParserClass.getField("INSTANCE").get(null);
 
-        // Access parseDirectHashMap method
+        // Access parseDirectHashMap method (updated signature with docLength parameter)
         java.lang.reflect.Method parseMethod = documentParserClass.getDeclaredMethod(
             "parseDirectHashMap",
             com.cloud.fastbson.reader.BsonReader.class,
+            int.class,
             int.class
         );
         parseMethod.setAccessible(true);
@@ -316,9 +317,9 @@ public class UncoveredBranchesTest {
         // Skip the document length field
         reader.readInt32();
 
-        // Call parseDirectHashMap with endPosition
+        // Call parseDirectHashMap with endPosition and documentLength
         // The method should exit via position check since there's no 0x00 terminator
-        Object result = parseMethod.invoke(documentParser, reader, endPos);
+        Object result = parseMethod.invoke(documentParser, reader, endPos, documentLength);
 
         // Should return a valid HashMap document (defensive code handles missing terminator gracefully)
         assertNotNull(result);
